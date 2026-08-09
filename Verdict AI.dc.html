@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;font-family:'Inter',-apple-system,'Segoe UI',sans-serif;-webkit-font-smoothing:antialiased;}
+  * { box-sizing: border-box; }
+  ::-webkit-scrollbar{width:8px;height:8px;}
+  ::-webkit-scrollbar-thumb{background:{{ c.border }};border-radius:4px;}
+  @keyframes pulseGlow{0%,100%{box-shadow:0 0 0 0 rgba(99,102,241,0.35);}50%{box-shadow:0 0 0 6px rgba(99,102,241,0.12);}}
+  @keyframes spin{to{transform:rotate(360deg);}}
+</style>
+</helmet>
+
+<div style="position:fixed;inset:0;background:{{ c.bg }};color:{{ c.textPrimary }};overflow:hidden;">
+
+<!-- ============ SCREEN 1: AUTH ============ -->
+<sc-if value="{{ isAuth }}" hint-placeholder-val="{{ true }}">
+  <div style="height:100%;display:flex;align-items:center;justify-content:center;">
+    <div style="width:380px;display:flex;flex-direction:column;gap:24px;">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+        <div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#6366F1,#8B5CF6);"></div>
+        <div style="font-size:20px;font-weight:600;">Verdict AI</div>
+        <div style="font-size:13px;color:{{ c.textSecondary }};">Анализ A/B-тестов с AI-агентом</div>
+      </div>
+      <div style="display:flex;gap:4px;background:{{ c.surface }};border-radius:10px;padding:4px;">
+        <div onClick="{{ setAuthMode_signin }}" style="{{ authTabSigninStyle }}">Вход</div>
+        <div onClick="{{ setAuthMode_signup }}" style="{{ authTabSignupStyle }}">Регистрация</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <input placeholder="Email" style="{{ inputStyle }}"></input>
+        <input placeholder="Пароль" type="password" style="{{ inputStyle }}"></input>
+        <button onClick="{{ submitAuth }}" style="{{ primaryButtonStyle }}">{{ authSubmitLabel }}</button>
+        <button style="{{ secondaryButtonStyle }}">Продолжить с Google</button>
+      </div>
+      <div style="text-align:center;font-size:12px;color:{{ c.textSecondary }};">Демо-прототип, любые данные подойдут</div>
+    </div>
+  </div>
+</sc-if>
+
+<!-- ============ SCREEN 2a: ONBOARDING FORM ============ -->
+<sc-if value="{{ isOnboardForm }}" hint-placeholder-val="{{ false }}">
+  <div style="height:100%;overflow:auto;display:flex;justify-content:center;padding:48px 24px;">
+    <div style="width:520px;display:flex;flex-direction:column;gap:20px;">
+      <div>
+        <div style="font-size:22px;font-weight:600;">Расскажите о себе и компании</div>
+        <div style="font-size:13px;color:{{ c.textSecondary }};margin-top:4px;">Это поможет агенту точнее анализировать ваши тесты</div>
+      </div>
+      <label style="{{ fieldLabelStyle }}">Имя<input placeholder="Мария Иванова" style="{{ inputStyle }}"></input></label>
+      <label style="{{ fieldLabelStyle }}">Роль
+        <select style="{{ inputStyle }}"><option>Admin</option><option>Analyst</option><option>Product</option><option>Marketer</option><option>Other</option></select>
+      </label>
+      <label style="{{ fieldLabelStyle }}">Компания / проект<input placeholder="Acme Commerce" style="{{ inputStyle }}"></input></label>
+      <div style="{{ fieldLabelStyle }}">Основная цель использования
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px;">
+          <label style="display:flex;gap:8px;align-items:center;font-size:14px;font-weight:400;"><input type="checkbox" checked></input>Анализ A/B тестов</label>
+          <label style="display:flex;gap:8px;align-items:center;font-size:14px;font-weight:400;"><input type="checkbox"></input>Поиск инсайтов</label>
+          <label style="display:flex;gap:8px;align-items:center;font-size:14px;font-weight:400;"><input type="checkbox"></input>Отчёты для команды</label>
+        </div>
+      </div>
+      <div style="{{ fieldLabelStyle }}">Описание компании и продукта (.md)
+        <div style="margin-top:6px;border:1.5px dashed {{ c.border }};border-radius:10px;padding:20px;display:flex;flex-direction:column;align-items:center;gap:6px;background:{{ c.surface }};">
+          <sc-if value="{{ mdUploaded }}" hint-placeholder-val="{{ false }}">
+            <div style="font-size:13px;font-weight:500;">company.md</div>
+            <div style="font-size:12px;color:{{ c.textSecondary }};">14.2 КБ · загружен</div>
+          </sc-if>
+          <sc-if value="{{ mdNotUploaded }}" hint-placeholder-val="{{ true }}">
+            <div style="font-size:13px;">Перетащите .md файл сюда или</div>
+            <button onClick="{{ uploadMd }}" style="{{ secondaryButtonStyleSmall }}">Выбрать файл</button>
+          </sc-if>
+        </div>
+        <div style="margin-top:6px;font-size:12px;"><a href="#" style="color:{{ c.accent }};text-decoration:none;">Скачать шаблон .md</a></div>
+      </div>
+      <button onClick="{{ goOnboardChat }}" style="{{ primaryButtonStyle }}">Продолжить</button>
+    </div>
+  </div>
+</sc-if>
+
+<!-- ============ SCREEN 2b: ONBOARDING CHAT ============ -->
+<sc-if value="{{ isOnboardChat }}" hint-placeholder-val="{{ false }}">
+  <div style="height:100%;display:flex;flex-direction:column;align-items:center;">
+    <div style="width:100%;max-width:640px;flex:1;overflow:auto;padding:32px 16px 16px;display:flex;flex-direction:column;gap:16px;">
+      <div style="font-size:13px;color:{{ c.textSecondary }};text-align:center;">Агент изучает company.md и уточняет детали</div>
+      <sc-for list="{{ onboardMessages }}" as="m" hint-placeholder-count="4">
+        <div style="{{ m.wrapStyle }}">
+          <sc-if value="{{ m.isAgent }}" hint-placeholder-val="{{ true }}">
+            <div style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#6366F1,#8B5CF6);flex-shrink:0;"></div>
+          </sc-if>
+          <div style="{{ m.bubbleStyle }}">{{ m.text }}</div>
+        </div>
+      </sc-for>
+      <sc-if value="{{ onboardComplete }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;justify-content:center;margin-top:8px;">
+          <button onClick="{{ goMain }}" style="{{ primaryButtonStyle }}">Всё верно, начать работу</button>
+        </div>
+      </sc-if>
+    </div>
+    <div style="width:100%;max-width:640px;padding:12px 16px 24px;display:flex;gap:8px;">
+      <input placeholder="Ответить агенту..." style="{{ chatInputStyle }}" onKeyDown="{{ onboardInputKeyDown }}"></input>
+    </div>
+  </div>
+</sc-if>
+
+<!-- ============ SCREEN 3/5/all-tests: MAIN APP SHELL ============ -->
+<sc-if value="{{ isAppShell }}" hint-placeholder-val="{{ false }}">
+  <div style="height:100%;display:flex;">
+    <!-- Sidebar -->
+    <div style="{{ sidebarStyle }}">
+      <sc-if value="{{ sidebarExpanded }}" hint-placeholder-val="{{ true }}">
+        <div style="padding:14px 12px;display:flex;flex-direction:column;gap:14px;height:100%;">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px;"><div style="width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,#6366F1,#8B5CF6);"></div>Verdict AI</div>
+            <div onClick="{{ toggleSidebar }}" style="cursor:pointer;color:{{ c.textSecondary }};font-size:13px;padding:4px;">⟨</div>
+          </div>
+          <button onClick="{{ openNewTest }}" style="{{ primaryButtonStyle }}">✦ Новый тест</button>
+          <div style="flex:1;overflow:auto;display:flex;flex-direction:column;gap:2px;">
+            <div style="font-size:11px;color:{{ c.textSecondary }};text-transform:uppercase;letter-spacing:.04em;padding:8px 8px 4px;">Тесты</div>
+            <sc-for list="{{ tests }}" as="t" hint-placeholder-count="3">
+              <div onClick="{{ t.select }}" style="{{ t.rowStyle }}">
+                <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">{{ t.name }}</div>
+                <div style="{{ t.dotStyle }}"></div>
+              </div>
+            </sc-for>
+          </div>
+          <div onClick="{{ goAllTests }}" style="{{ allTestsLinkStyle }}">Все тесты</div>
+          <div style="position:relative;border-top:1px solid {{ c.border }};padding-top:10px;">
+            <div onClick="{{ toggleProfileMenu }}" style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px;border-radius:8px;">
+              <div style="width:26px;height:26px;border-radius:50%;background:{{ c.accent }};color:white;font-size:12px;display:flex;align-items:center;justify-content:center;font-weight:600;">МИ</div>
+              <div style="font-size:13px;font-weight:500;flex:1;">Мария Иванова</div>
+            </div>
+            <sc-if value="{{ profileMenuOpen }}" hint-placeholder-val="{{ false }}">
+              <div style="position:absolute;bottom:44px;left:6px;width:200px;background:{{ c.bg }};border:1px solid {{ c.border }};border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.15);padding:6px;display:flex;flex-direction:column;gap:2px;">
+                <div onClick="{{ goSettings }}" style="{{ menuItemStyle }}">Настройки</div>
+                <div onClick="{{ toggleTheme }}" style="{{ menuItemStyle }}">Тема: {{ themeLabel }}</div>
+                <div style="{{ menuItemStyle }}">Помощь / документация</div>
+                <div style="{{ menuItemStyleDanger }}">Выйти</div>
+              </div>
+            </sc-if>
+          </div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ sidebarCollapsed }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:14px 8px;display:flex;flex-direction:column;align-items:center;gap:14px;">
+          <div onClick="{{ toggleSidebar }}" style="cursor:pointer;color:{{ c.textSecondary }};">⟩</div>
+          <div onClick="{{ openNewTest }}" style="width:32px;height:32px;border-radius:8px;background:{{ c.accent }};color:white;display:flex;align-items:center;justify-content:center;cursor:pointer;">✦</div>
+        </div>
+      </sc-if>
+    </div>
+
+    <!-- Main content -->
+    <div style="flex:1;display:flex;flex-direction:column;min-width:0;">
+
+      <!-- MAIN CHAT SCREEN -->
+      <sc-if value="{{ isMain }}" hint-placeholder-val="{{ true }}">
+        <div style="height:56px;border-bottom:1px solid {{ c.border }};display:flex;align-items:center;justify-content:space-between;padding:0 20px;flex-shrink:0;">
+          <div style="font-size:15px;font-weight:600;">{{ currentTestName }}</div>
+          <sc-if value="{{ hasCurrentTest }}" hint-placeholder-val="{{ false }}">
+            <div style="{{ statusBadgeStyle }}">{{ currentStatusLabel }}</div>
+          </sc-if>
+        </div>
+        <div style="flex:1;overflow:auto;padding:24px;display:flex;flex-direction:column;gap:16px;">
+          <sc-if value="{{ chatEmpty }}" hint-placeholder-val="{{ false }}">
+            <div style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;">
+              <div style="width:52px;height:52px;border-radius:14px;background:linear-gradient(135deg,#6366F1,#8B5CF6);"></div>
+              <div style="font-size:18px;font-weight:600;">Добро пожаловать, Мария</div>
+              <div style="font-size:14px;color:{{ c.textSecondary }};max-width:360px;">Создайте тест — агент проанализирует данные и предложит выводы</div>
+              <button onClick="{{ openNewTest }}" style="{{ primaryButtonStyle }}">✦ Создать новый тест</button>
+            </div>
+          </sc-if>
+          <sc-if value="{{ hasCurrentTest }}" hint-placeholder-val="{{ false }}">
+            <sc-for list="{{ currentMessages }}" as="m" hint-placeholder-count="3">
+              <div style="{{ m.wrapStyle }}">
+                <sc-if value="{{ m.isAgent }}" hint-placeholder-val="{{ true }}">
+                  <div style="{{ m.avatarStyle }}"></div>
+                </sc-if>
+                <sc-if value="{{ m.isUser }}" hint-placeholder-val="{{ false }}">
+                  <div style="width:28px;height:28px;border-radius:50%;background:{{ c.accent }};color:white;font-size:11px;display:flex;align-items:center;justify-content:center;font-weight:600;flex-shrink:0;">{{ m.initials }}</div>
+                </sc-if>
+                <div style="max-width:520px;">
+                  <div style="font-size:12px;color:{{ c.textSecondary }};margin-bottom:4px;">{{ m.author }}</div>
+                  <div style="{{ m.bubbleStyle }}">{{ m.text }}</div>
+                  <sc-if value="{{ m.showResultCard }}" hint-placeholder-val="{{ false }}">
+                    <div style="margin-top:10px;border:1px solid {{ c.border }};border-radius:10px;overflow:hidden;">
+                      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;font-family:'JetBrains Mono',monospace;font-size:12px;">
+                        <div style="{{ tableHeadCellStyle }}">Группа</div><div style="{{ tableHeadCellStyle }}">Конверсия</div><div style="{{ tableHeadCellStyle }}">Δ vs control</div>
+                        <div style="{{ tableCellStyle }}">Control</div><div style="{{ tableCellStyle }}">3.8%</div><div style="{{ tableCellStyle }}">—</div>
+                        <div style="{{ tableCellStyle }}">Variant</div><div style="{{ tableCellStyle }}">4.6%</div><div style="{{ tableCellStyleGood }}">+21%, p=0.02</div>
+                      </div>
+                    </div>
+                  </sc-if>
+                </div>
+              </div>
+            </sc-for>
+            <sc-if value="{{ isAnalyzing }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;gap:10px;align-items:center;">
+                <div style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#6366F1,#8B5CF6);animation:pulseGlow 1.6s ease-in-out infinite;"></div>
+                <div style="font-size:13px;color:{{ c.textSecondary }};">✦ Агент анализирует данные...</div>
+              </div>
+            </sc-if>
+          </sc-if>
+        </div>
+        <sc-if value="{{ hasCurrentTest }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:12px 24px 20px;display:flex;gap:8px;border-top:1px solid {{ c.border }};">
+            <input placeholder="Спросите агента про этот тест..." style="{{ chatInputStyle }}"></input>
+          </div>
+        </sc-if>
+      </sc-if>
+
+      <!-- ALL TESTS SCREEN -->
+      <sc-if value="{{ isAllTests }}" hint-placeholder-val="{{ false }}">
+        <div style="height:56px;border-bottom:1px solid {{ c.border }};display:flex;align-items:center;padding:0 24px;font-size:15px;font-weight:600;flex-shrink:0;">Все тесты</div>
+        <div style="flex:1;overflow:auto;padding:24px;">
+          <sc-if value="{{ hasTests }}" hint-placeholder-val="{{ true }}">
+            <div style="border:1px solid {{ c.border }};border-radius:12px;overflow:hidden;">
+              <div style="display:grid;grid-template-columns:2fr 2.4fr 1fr 1.6fr 1.2fr 1fr;background:{{ c.surface }};font-size:12px;color:{{ c.textSecondary }};">
+                <div style="{{ tableHeadCellStyle }}">Название</div><div style="{{ tableHeadCellStyle }}">Гипотеза</div><div style="{{ tableHeadCellStyle }}">Статус</div><div style="{{ tableHeadCellStyle }}">Результаты</div><div style="{{ tableHeadCellStyle }}">Решение</div><div style="{{ tableHeadCellStyle }}">Дата</div>
+              </div>
+              <sc-for list="{{ tests }}" as="t" hint-placeholder-count="3">
+                <div onClick="{{ t.select }}" style="display:grid;grid-template-columns:2fr 2.4fr 1fr 1.6fr 1.2fr 1fr;cursor:pointer;border-top:1px solid {{ c.border }};font-size:13px;">
+                  <div style="{{ tableCellStyle }}">{{ t.name }}</div>
+                  <div style="{{ tableCellStyleMuted }}">{{ t.hypothesis }}</div>
+                  <div style="{{ tableCellStyle }}"><span style="{{ t.statusBadgeStyle }}">{{ t.statusLabel }}</span></div>
+                  <div style="{{ tableCellStyleMuted }}">{{ t.resultShort }}</div>
+                  <div style="{{ tableCellStyle }}">{{ t.decisionLabel }}</div>
+                  <div style="{{ tableCellStyleMuted }}">{{ t.date }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ noTests }}" hint-placeholder-val="{{ false }}">
+            <div style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;">
+              <div style="width:48px;height:48px;border-radius:12px;background:{{ c.surface }};"></div>
+              <div style="font-size:15px;font-weight:600;">Пока нет ни одного теста</div>
+              <button onClick="{{ openNewTest }}" style="{{ primaryButtonStyle }}">✦ Создать первый тест</button>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <!-- SETTINGS SCREEN -->
+      <sc-if value="{{ isSettings }}" hint-placeholder-val="{{ false }}">
+        <div style="height:56px;border-bottom:1px solid {{ c.border }};display:flex;align-items:center;padding:0 24px;font-size:15px;font-weight:600;flex-shrink:0;">Настройки</div>
+        <div style="flex:1;display:flex;overflow:hidden;">
+          <div style="width:200px;border-right:1px solid {{ c.border }};padding:16px 10px;display:flex;flex-direction:column;gap:2px;flex-shrink:0;">
+            <div onClick="{{ setTab_profile }}" style="{{ settingsTabStyle.profile }}">Профиль</div>
+            <div onClick="{{ setTab_company }}" style="{{ settingsTabStyle.company }}">Компания</div>
+            <div onClick="{{ setTab_team }}" style="{{ settingsTabStyle.team }}">Команда</div>
+            <div onClick="{{ setTab_theme }}" style="{{ settingsTabStyle.theme }}">Тема</div>
+            <div onClick="{{ setTab_roles }}" style="{{ settingsTabStyle.roles }}">Роли и права</div>
+          </div>
+          <div style="flex:1;overflow:auto;padding:28px 32px;">
+            <sc-if value="{{ tabIsProfile }}" hint-placeholder-val="{{ true }}">
+              <div style="max-width:420px;display:flex;flex-direction:column;gap:14px;">
+                <label style="{{ fieldLabelStyle }}">Имя<input value="Мария Иванова" style="{{ inputStyle }}"></input></label>
+                <label style="{{ fieldLabelStyle }}">Email<input value="maria@acme-commerce.io" style="{{ inputStyle }}"></input></label>
+                <label style="{{ fieldLabelStyle }}">Пароль<button style="{{ secondaryButtonStyleSmall }}">Изменить пароль</button></label>
+                <label style="{{ fieldLabelStyle }}">Роль<div style="font-size:14px;color:{{ c.textSecondary }};">Admin</div></label>
+              </div>
+            </sc-if>
+            <sc-if value="{{ tabIsCompany }}" hint-placeholder-val="{{ false }}">
+              <div style="max-width:480px;display:flex;flex-direction:column;gap:14px;">
+                <div style="{{ fieldLabelStyle }}">Название<div style="font-size:14px;color:{{ c.textSecondary }};">Acme Commerce</div></div>
+                <div style="{{ fieldLabelStyle }}">Описание компании/продукта
+                  <div style="margin-top:6px;display:flex;align-items:center;justify-content:space-between;border:1px solid {{ c.border }};border-radius:10px;padding:12px 14px;">
+                    <div>
+                      <div style="font-size:13px;font-weight:500;">company_v2.md</div>
+                      <div style="font-size:12px;color:{{ c.textSecondary }};">контекст компании v2 · обновлён 12.03.2026</div>
+                    </div>
+                    <button style="{{ secondaryButtonStyleSmall }}">Загрузить новый</button>
+                  </div>
+                </div>
+                <div style="{{ fieldLabelStyle }}">История версий
+                  <div style="display:flex;flex-direction:column;gap:6px;margin-top:6px;">
+                    <div style="display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid {{ c.border }};"><span>v2 — 12.03.2026</span><a href="#" style="color:{{ c.accent }};text-decoration:none;">Скачать</a></div>
+                    <div style="display:flex;justify-content:space-between;font-size:13px;padding:6px 0;"><span>v1 — 04.01.2026</span><a href="#" style="color:{{ c.accent }};text-decoration:none;">Скачать</a></div>
+                  </div>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ tabIsTeam }}" hint-placeholder-val="{{ false }}">
+              <div style="max-width:560px;display:flex;flex-direction:column;gap:12px;">
+                <div style="display:flex;justify-content:flex-end;"><button onClick="{{ openInviteModal }}" style="{{ secondaryButtonStyleSmall }}">Пригласить участника</button></div>
+                <sc-for list="{{ teamMembers }}" as="p" hint-placeholder-count="3">
+                  <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid {{ c.border }};">
+                    <div><div style="font-size:14px;font-weight:500;">{{ p.name }}</div><div style="font-size:12px;color:{{ c.textSecondary }};">{{ p.email }}</div></div>
+                    <div style="font-size:13px;color:{{ c.textSecondary }};">{{ p.role }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+            <sc-if value="{{ tabIsTheme }}" hint-placeholder-val="{{ false }}">
+              <div style="max-width:360px;display:flex;flex-direction:column;gap:8px;">
+                <div onClick="{{ setThemeLight }}" style="{{ themeOptionStyle.light }}">Светлая</div>
+                <div onClick="{{ setThemeDark }}" style="{{ themeOptionStyle.dark }}">Тёмная</div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ tabIsRoles }}" hint-placeholder-val="{{ false }}">
+              <div style="max-width:520px;font-size:13px;line-height:1.6;color:{{ c.textSecondary }};">
+                <div style="margin-bottom:10px;"><b style="color:{{ c.textPrimary }};">Admin</b> — полный доступ: команда, настройки компании, все тесты</div>
+                <div><b style="color:{{ c.textPrimary }};">Analyst / Product / Marketer</b> — создание тестов, просмотр всех тестов компании, чат с агентом</div>
+              </div>
+            </sc-if>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+</sc-if>
+
+<!-- ============ INVITE MEMBER MODAL ============ -->
+<sc-if value="{{ inviteModalOpen }}" hint-placeholder-val="{{ false }}">
+  <div style="position:absolute;inset:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;z-index:50;" onClick="{{ closeInviteModal }}">
+    <div onClick="{{ stopClick }}" style="width:400px;background:{{ c.bg }};border-radius:14px;padding:24px;display:flex;flex-direction:column;gap:14px;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+      <div style="font-size:17px;font-weight:600;">Пригласить участника</div>
+      <label style="{{ fieldLabelStyle }}">Email<input placeholder="name@company.com" value="{{ inviteEmail }}" onChange="{{ setInviteEmail }}" style="{{ inputStyle }}"></input></label>
+      <label style="{{ fieldLabelStyle }}">Роль
+        <select value="{{ inviteRole }}" onChange="{{ setInviteRole }}" style="{{ inputStyle }}">
+          <option value="Admin">Admin</option><option value="Analyst">Analyst</option><option value="Product">Product</option><option value="Marketer">Marketer</option>
+        </select>
+      </label>
+      <sc-if value="{{ inviteSent }}" hint-placeholder-val="{{ false }}">
+        <div style="font-size:13px;color:{{ c.success }};">Ссылка-приглашение отправлена на {{ inviteEmail }}</div>
+      </sc-if>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px;">
+        <button onClick="{{ closeInviteModal }}" style="{{ secondaryButtonStyle }};flex:none;padding:10px 16px;">Отмена</button>
+        <button onClick="{{ sendInvite }}" style="{{ primaryButtonStyle }};flex:none;padding:10px 16px;">Отправить приглашение</button>
+      </div>
+    </div>
+  </div>
+</sc-if>
+
+<!-- ============ NEW TEST MODAL ============ -->
+<sc-if value="{{ newTestModalOpen }}" hint-placeholder-val="{{ false }}">
+  <div style="position:absolute;inset:0;background:rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;z-index:50;" onClick="{{ closeNewTestBackdrop }}">
+    <div onClick="{{ stopClick }}" style="width:520px;max-height:88vh;overflow:auto;background:{{ c.bg }};border-radius:14px;padding:24px;display:flex;flex-direction:column;gap:14px;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+      <div style="font-size:17px;font-weight:600;">Новый тест</div>
+      <label style="{{ fieldLabelStyle }}">Название теста<input placeholder="Новая карточка товара" style="{{ inputStyle }}"></input></label>
+      <label style="{{ fieldLabelStyle }}">Гипотеза / что тестируем<textarea placeholder="Изменение макета карточки товара увеличит конверсию в добавление в корзину" style="{{ textareaStyle }}"></textarea></label>
+      <div style="display:flex;gap:10px;">
+        <label style="{{ fieldLabelStyle }};flex:1;">Тип теста<select style="{{ inputStyle }}"><option>По пользователям</option><option>Switchback</option><option>Cluster</option><option>Ценообразование</option></select></label>
+        <label style="{{ fieldLabelStyle }};flex:1;">Группы<select style="{{ inputStyle }}"><option>A/B</option><option>A/B/n</option><option>Multivariate</option></select></label>
+      </div>
+      <label style="{{ fieldLabelStyle }}">Задача в трекере<input placeholder="JIRA-1042" style="{{ inputStyle }}"></input></label>
+      <label style="{{ fieldLabelStyle }}">Сегмент/аудитория (опционально)<input placeholder="Новые пользователи, iOS" style="{{ inputStyle }}"></input></label>
+      <div style="display:flex;gap:10px;">
+        <label style="{{ fieldLabelStyle }};flex:1;">Начало<input type="date" style="{{ inputStyle }}"></input></label>
+        <label style="{{ fieldLabelStyle }};flex:1;">Конец<input type="date" style="{{ inputStyle }}"></input></label>
+      </div>
+      <div style="{{ fieldLabelStyle }}">Файл с данными (csv, parquet, xlsx)
+        <div style="margin-top:6px;border:1.5px dashed {{ c.border }};border-radius:10px;padding:16px;text-align:center;font-size:13px;color:{{ c.textSecondary }};background:{{ c.surface }};">Перетащите файл сюда · до 50 МБ · нужны колонки control/variant</div>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px;">
+        <button onClick="{{ closeNewTest }}" style="{{ secondaryButtonStyle }};flex:none;padding:10px 16px;">Отмена</button>
+        <button onClick="{{ submitNewTest }}" style="{{ primaryButtonStyle }};flex:none;padding:10px 16px;">✦ Запустить анализ</button>
+      </div>
+    </div>
+  </div>
+</sc-if>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = {
+    theme: 'light',
+    screen: 'auth',
+    authMode: 'signin',
+    mdUploaded: false,
+    onboardStep: 0,
+    sidebarCollapsed: false,
+    profileMenuOpen: false,
+    inviteSent: false,
+    inviteModalOpen: false,
+    inviteEmail: '',
+    inviteRole: 'Analyst',
+    newTestModalOpen: false,
+    currentTestId: null,
+    settingsTab: 'profile',
+    tests: [
+      { id: 1, name: 'Новая карточка товара', hypothesis: 'Изменение макета карточки товара увеличит конверсию в добавление в корзину', status: 'done', decision: 'Принято', date: '28.07.2026' },
+      { id: 2, name: 'Persistent header CTA', hypothesis: 'Закреплённая кнопка CTA в хедере повысит клики на оформление заказа', status: 'analyzing', decision: '—', date: '02.08.2026' },
+      { id: 3, name: 'Скидка в баннере vs без', hypothesis: 'Показ скидки в баннере на главной увеличит средний чек', status: 'done', decision: 'Отклонено', date: '15.07.2026' },
+    ],
+  };
+
+  colors() {
+    return this.state.theme === 'light' ? {
+      bg: '#FFFFFF', surface: '#F7F7F8', border: '#E5E5E8',
+      textPrimary: '#1A1A1E', textSecondary: '#6B6B76',
+      accent: '#6366F1', accentHover: '#4F46E5', accentActive: '#4338CA', accentSoft: '#EEF2FF',
+      success: '#10B981', warning: '#F59E0B', error: '#EF4444',
+    } : {
+      bg: '#161618', surface: '#1E1E21', border: '#2E2E33',
+      textPrimary: '#EDEDEF', textSecondary: '#9B9BA3',
+      accent: '#6366F1', accentHover: '#4F46E5', accentActive: '#4338CA', accentSoft: 'rgba(99,102,241,0.2)',
+      success: '#10B981', warning: '#F59E0B', error: '#EF4444',
+    };
+  }
+
+  renderVals() {
+    const c = this.colors();
+    const s = this.state;
+
+    const inputStyle = { width: '100%', boxSizing: 'border-box', padding: '10px 12px', fontSize: '14px', borderRadius: '8px', border: `1px solid ${c.border}`, background: c.bg, color: c.textPrimary, outline: 'none', fontFamily: 'Inter,sans-serif' };
+    const textareaStyle = { ...inputStyle, minHeight: '70px', resize: 'vertical', fontFamily: 'Inter,sans-serif' };
+    const primaryButtonStyle = { width: '100%', padding: '10px 14px', borderRadius: '8px', border: 'none', background: c.accent, color: '#fff', fontSize: '14px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' };
+    const secondaryButtonStyle = { width: '100%', padding: '10px 14px', borderRadius: '8px', border: `1px solid ${c.border}`, background: 'transparent', color: c.textPrimary, fontSize: '14px', fontWeight: 500, cursor: 'pointer' };
+    const secondaryButtonStyleSmall = { ...secondaryButtonStyle, width: 'auto', padding: '6px 12px', fontSize: '13px' };
+    const fieldLabelStyle = { display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px', fontWeight: 500, color: c.textSecondary };
+    const chatInputStyle = { flex: 1, padding: '12px 16px', borderRadius: '10px', border: `1px solid ${c.border}`, background: c.surface, color: c.textPrimary, fontSize: '14px', outline: 'none' };
+    const menuItemStyle = { padding: '8px 10px', fontSize: '13px', borderRadius: '6px', cursor: 'pointer', color: c.textPrimary };
+    const menuItemStyleDanger = { ...menuItemStyle, color: c.error };
+    const tableHeadCellStyle = { padding: '10px 14px', fontWeight: 600, fontFamily: "'JetBrains Mono',monospace", fontSize: '11px', textTransform: 'uppercase', letterSpacing: '.04em', color: c.textSecondary };
+    const tableCellStyle = { padding: '10px 14px', color: c.textPrimary };
+    const tableCellStyleMuted = { padding: '10px 14px', color: c.textSecondary };
+    const tableCellStyleGood = { padding: '10px 14px', color: c.success, fontFamily: "'JetBrains Mono',monospace", fontSize: '12px' };
+
+    const statusMeta = {
+      done: { label: 'Готово', bg: c.success + '22', color: c.success },
+      analyzing: { label: 'Анализирует', bg: c.warning + '22', color: c.warning },
+      failed: { label: 'Ошибка', bg: c.error + '22', color: c.error },
+      queued: { label: 'В очереди', bg: c.textSecondary + '22', color: c.textSecondary },
+    };
+
+    const tests = s.tests.map(t => {
+      const meta = statusMeta[t.status];
+      return {
+        ...t,
+        select: () => this.setState({ currentTestId: t.id, screen: 'main' }),
+        rowStyle: { display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 8px', borderRadius: '7px', cursor: 'pointer', fontSize: '13px', background: s.currentTestId === t.id ? c.surface : 'transparent', color: c.textPrimary },
+        dotStyle: { width: '6px', height: '6px', borderRadius: '50%', background: meta.color, flexShrink: 0 },
+        statusLabel: meta.label,
+        statusBadgeStyle: { fontSize: '12px', padding: '3px 8px', borderRadius: '6px', background: meta.bg, color: meta.color, fontWeight: 500 },
+        resultShort: t.status === 'done' ? 'Variant +21%, p=0.02' : t.status === 'analyzing' ? 'В процессе' : '—',
+        decisionLabel: t.decision,
+      };
+    });
+
+    const currentTest = tests.find(t => t.id === s.currentTestId);
+
+    const agentMsgStyle = { display: 'flex', gap: '10px', alignItems: 'flex-start' };
+    const userMsgStyle = { display: 'flex', gap: '10px', alignItems: 'flex-start', flexDirection: 'row-reverse', textAlign: 'right' };
+    const bubbleBase = { padding: '10px 14px', borderRadius: '10px', fontSize: '14px', lineHeight: 1.5 };
+    const agentBubble = { ...bubbleBase, background: c.surface, color: c.textPrimary };
+    const userBubble = { ...bubbleBase, background: c.accentSoft, color: c.textPrimary };
+
+    let currentMessages = [];
+    if (currentTest) {
+      if (currentTest.status === 'done') {
+        currentMessages = [
+          { author: 'Мария Иванова', isUser: true, isAgent: false, initials: 'МИ', text: currentTest.hypothesis, wrapStyle: userMsgStyle, bubbleStyle: userBubble },
+          { author: 'Verdict AI', isAgent: true, isUser: false, text: 'Анализ завершён. Вариант B показал статистически значимый прирост конверсии относительно контроля.', wrapStyle: agentMsgStyle, bubbleStyle: agentBubble, showResultCard: true, avatarStyle: { width: '28px', height: '28px', borderRadius: '8px', background: 'linear-gradient(135deg,#6366F1,#8B5CF6)', flexShrink: 0 } },
+        ];
+      } else if (currentTest.status === 'analyzing') {
+        currentMessages = [
+          { author: 'Мария Иванова', isUser: true, isAgent: false, initials: 'МИ', text: currentTest.hypothesis, wrapStyle: userMsgStyle, bubbleStyle: userBubble },
+        ];
+      }
+    }
+
+    const onboardMessages = [
+      { isAgent: true, text: 'Изучил company.md. Правильно понимаю, что основные тесты у вас — по конверсии в оформление заказа?', wrapStyle: agentMsgStyle, bubbleStyle: agentBubble },
+      { isAgent: false, text: 'Да, верно, иногда ещё смотрим средний чек.', wrapStyle: userMsgStyle, bubbleStyle: userBubble },
+      { isAgent: true, text: 'У вас маркетплейс-модель — уточните: тестируете изменения на уровне продавцов или покупателей? Важно из-за риска spillover-эффектов между сторонами рынка.', wrapStyle: agentMsgStyle, bubbleStyle: agentBubble },
+      { isAgent: false, text: 'В основном на стороне покупателей.', wrapStyle: userMsgStyle, bubbleStyle: userBubble },
+    ];
+
+    const authTabBase = { flex: 1, textAlign: 'center', padding: '8px', borderRadius: '8px', fontSize: '13px', fontWeight: 500, cursor: 'pointer' };
+
+    return {
+      c, inputStyle, textareaStyle, primaryButtonStyle, secondaryButtonStyle, secondaryButtonStyleSmall,
+      fieldLabelStyle, chatInputStyle, menuItemStyle, menuItemStyleDanger,
+      tableHeadCellStyle, tableCellStyle, tableCellStyleMuted, tableCellStyleGood,
+
+      isAuth: s.screen === 'auth',
+      isOnboardForm: s.screen === 'onboard-form',
+      isOnboardChat: s.screen === 'onboard-chat',
+      isAppShell: ['main', 'all-tests', 'settings'].includes(s.screen),
+      isMain: s.screen === 'main',
+      isAllTests: s.screen === 'all-tests',
+      isSettings: s.screen === 'settings',
+
+      authMode: s.authMode,
+      authSubmitLabel: s.authMode === 'signin' ? 'Войти' : 'Зарегистрироваться',
+      authTabSigninStyle: { ...authTabBase, background: s.authMode === 'signin' ? c.bg : 'transparent', color: c.textPrimary, boxShadow: s.authMode === 'signin' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none' },
+      authTabSignupStyle: { ...authTabBase, background: s.authMode === 'signup' ? c.bg : 'transparent', color: c.textPrimary, boxShadow: s.authMode === 'signup' ? '0 1px 2px rgba(0,0,0,0.08)' : 'none' },
+      setAuthMode_signin: () => this.setState({ authMode: 'signin' }),
+      setAuthMode_signup: () => this.setState({ authMode: 'signup' }),
+      submitAuth: () => this.setState({ screen: s.authMode === 'signup' ? 'onboard-form' : 'main' }),
+
+      mdUploaded: s.mdUploaded,
+      mdNotUploaded: !s.mdUploaded,
+      uploadMd: () => this.setState({ mdUploaded: true }),
+      goOnboardChat: () => this.setState({ screen: 'onboard-chat' }),
+      onboardMessages,
+      onboardComplete: true,
+      onboardInputKeyDown: () => {},
+      goMain: () => this.setState({ screen: 'main', currentTestId: null }),
+
+      sidebarExpanded: !s.sidebarCollapsed,
+      sidebarCollapsed: s.sidebarCollapsed,
+      sidebarStyle: { width: s.sidebarCollapsed ? '56px' : '240px', borderRight: `1px solid ${c.border}`, background: c.surface, flexShrink: 0, transition: 'width .15s ease' },
+      toggleSidebar: () => this.setState({ sidebarCollapsed: !s.sidebarCollapsed }),
+      tests,
+      openNewTest: () => this.setState({ newTestModalOpen: true }),
+      goAllTests: () => this.setState({ screen: 'all-tests' }),
+      allTestsLinkStyle: { fontSize: '13px', fontWeight: 500, color: s.screen === 'all-tests' ? c.accent : c.textPrimary, padding: '7px 8px', cursor: 'pointer' },
+      profileMenuOpen: s.profileMenuOpen,
+      toggleProfileMenu: () => this.setState({ profileMenuOpen: !s.profileMenuOpen }),
+      goSettings: () => this.setState({ screen: 'settings', profileMenuOpen: false }),
+      toggleTheme: () => this.setState({ theme: s.theme === 'light' ? 'dark' : 'light' }),
+      themeLabel: s.theme === 'light' ? 'Светлая' : 'Тёмная',
+
+      currentTestName: currentTest ? currentTest.name : 'Новый чат',
+      hasCurrentTest: !!currentTest,
+      chatEmpty: !currentTest,
+      currentStatusLabel: currentTest ? currentTest.statusLabel : '',
+      statusBadgeStyle: currentTest ? currentTest.statusBadgeStyle : {},
+      currentMessages,
+      isAnalyzing: currentTest && currentTest.status === 'analyzing',
+
+      hasTests: tests.length > 0,
+      noTests: tests.length === 0,
+
+      settingsTabStyle: ['profile', 'company', 'team', 'theme', 'roles'].reduce((acc, tab) => {
+        acc[tab] = { padding: '8px 10px', borderRadius: '7px', fontSize: '13px', fontWeight: 500, cursor: 'pointer', background: s.settingsTab === tab ? c.surface : 'transparent', color: c.textPrimary };
+        return acc;
+      }, {}),
+      tabIsProfile: s.settingsTab === 'profile',
+      tabIsCompany: s.settingsTab === 'company',
+      tabIsTeam: s.settingsTab === 'team',
+      tabIsTheme: s.settingsTab === 'theme',
+      tabIsRoles: s.settingsTab === 'roles',
+      setTab_profile: () => this.setState({ settingsTab: 'profile' }),
+      setTab_company: () => this.setState({ settingsTab: 'company' }),
+      setTab_team: () => this.setState({ settingsTab: 'team' }),
+      setTab_theme: () => this.setState({ settingsTab: 'theme' }),
+      setTab_roles: () => this.setState({ settingsTab: 'roles' }),
+      inviteSent: s.inviteSent,
+      inviteModalOpen: s.inviteModalOpen,
+      inviteEmail: s.inviteEmail,
+      inviteRole: s.inviteRole,
+      openInviteModal: () => this.setState({ inviteModalOpen: true, inviteSent: false, inviteEmail: '', inviteRole: 'Analyst' }),
+      closeInviteModal: () => this.setState({ inviteModalOpen: false }),
+      setInviteEmail: (e) => this.setState({ inviteEmail: e.target.value }),
+      setInviteRole: (e) => this.setState({ inviteRole: e.target.value }),
+      sendInvite: () => { this.setState({ inviteSent: true }); setTimeout(() => this.setState({ inviteModalOpen: false }), 1400); },
+      teamMembers: [
+        { name: 'Мария Иванова', email: 'maria@acme-commerce.io', role: 'Admin' },
+        { name: 'Пётр Соколов', email: 'petr@acme-commerce.io', role: 'Analyst' },
+        { name: 'Анна Кузнецова', email: 'anna@acme-commerce.io', role: 'Marketer' },
+      ],
+      themeOptionStyle: {
+        light: { padding: '10px 14px', borderRadius: '8px', border: `1px solid ${s.theme === 'light' ? c.accent : c.border}`, cursor: 'pointer', fontSize: '14px' },
+        dark: { padding: '10px 14px', borderRadius: '8px', border: `1px solid ${s.theme === 'dark' ? c.accent : c.border}`, cursor: 'pointer', fontSize: '14px' },
+      },
+      setThemeLight: () => this.setState({ theme: 'light' }),
+      setThemeDark: () => this.setState({ theme: 'dark' }),
+
+      newTestModalOpen: s.newTestModalOpen,
+      closeNewTest: () => this.setState({ newTestModalOpen: false }),
+      closeNewTestBackdrop: () => this.setState({ newTestModalOpen: false }),
+      stopClick: (e) => e.stopPropagation(),
+      submitNewTest: () => {
+        const id = Date.now();
+        const newTest = { id, name: 'Мобильная выкладка товаров', hypothesis: 'Новая выкладка на мобильном увеличит время на сайте и конверсию', status: 'analyzing', decision: '—', date: 'сегодня' };
+        this.setState({ tests: [newTest, ...s.tests], newTestModalOpen: false, screen: 'main', currentTestId: id });
+        setTimeout(() => {
+          this.setState({ tests: this.state.tests.map(t => t.id === id ? { ...t, status: 'done', decision: 'На паузе' } : t) });
+        }, 3500);
+      },
+    };
+  }
+}
+
+</script>
+</body>
+</html>
