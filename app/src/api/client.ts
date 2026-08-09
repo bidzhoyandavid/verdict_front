@@ -1,8 +1,11 @@
 import type {
   ABTest,
+  Chart,
+  CheckResult,
   ChatMessage,
   CompanyDoc,
   NewTestDraft,
+  ResultRow,
   Role,
   TeamMember,
   TestResults,
@@ -127,6 +130,50 @@ export async function fetchCurrentUser(): Promise<User> {
 
 /* ----------------------------------------------------------------- tests */
 
+interface ResultRowDto {
+  metric: string;
+  is_primary: boolean;
+  control_group: string | null;
+  treatment_group: string | null;
+  control_value: number | null;
+  treatment_value: number | null;
+  n_control: number | null;
+  n_treatment: number | null;
+  absolute_diff: number | null;
+  relative_diff: number | null;
+  p_value: number | null;
+  adjusted_p_value: number | null;
+  ci_low: number | null;
+  ci_high: number | null;
+  significant: boolean | null;
+  method: string | null;
+  warnings: string[];
+}
+
+interface VerdictDto {
+  code: string;
+  label: string;
+  action: string;
+  metric: string | null;
+  relative_diff: number | null;
+  p_value: number | null;
+  blocking_checks: string[];
+  caveats: string[];
+}
+
+interface TestResultsDto {
+  rows: ResultRowDto[];
+  checks: CheckResult[];
+  verdict: VerdictDto | null;
+  short: string;
+  srm_detected: boolean;
+  correction_applied: string | null;
+  power_verdict: string | null;
+  timeline_warnings: string[];
+  guardrail_violations: string[];
+  raw: Record<string, unknown> | null;
+}
+
 interface TestDto {
   id: string;
   name: string;
@@ -135,9 +182,59 @@ interface TestDto {
   decision: string;
   date: string;
   dataset_id: string | null;
-  results: TestResults | null;
+  results: TestResultsDto | null;
+  charts: Chart[] | null;
   pending_interrupt: ABTest['pendingInterrupt'];
   error: string | null;
+}
+
+function toRow(dto: ResultRowDto): ResultRow {
+  return {
+    metric: dto.metric,
+    isPrimary: dto.is_primary,
+    controlGroup: dto.control_group,
+    treatmentGroup: dto.treatment_group,
+    controlValue: dto.control_value,
+    treatmentValue: dto.treatment_value,
+    nControl: dto.n_control,
+    nTreatment: dto.n_treatment,
+    absoluteDiff: dto.absolute_diff,
+    relativeDiff: dto.relative_diff,
+    pValue: dto.p_value,
+    adjustedPValue: dto.adjusted_p_value,
+    ciLow: dto.ci_low,
+    ciHigh: dto.ci_high,
+    significant: dto.significant,
+    method: dto.method,
+    warnings: dto.warnings ?? [],
+  };
+}
+
+function toResults(dto: TestResultsDto | null): TestResults | null {
+  if (!dto) return null;
+  return {
+    rows: (dto.rows ?? []).map(toRow),
+    checks: dto.checks ?? [],
+    verdict: dto.verdict
+      ? {
+          code: dto.verdict.code,
+          label: dto.verdict.label,
+          action: dto.verdict.action,
+          metric: dto.verdict.metric,
+          relativeDiff: dto.verdict.relative_diff,
+          pValue: dto.verdict.p_value,
+          blockingChecks: dto.verdict.blocking_checks ?? [],
+          caveats: dto.verdict.caveats ?? [],
+        }
+      : null,
+    short: dto.short,
+    srmDetected: dto.srm_detected,
+    correctionApplied: dto.correction_applied,
+    powerVerdict: dto.power_verdict,
+    timelineWarnings: dto.timeline_warnings ?? [],
+    guardrailViolations: dto.guardrail_violations ?? [],
+    raw: dto.raw,
+  };
 }
 
 export function toTest(dto: TestDto): ABTest {
@@ -149,7 +246,8 @@ export function toTest(dto: TestDto): ABTest {
     decision: dto.decision,
     date: dto.date,
     datasetId: dto.dataset_id,
-    results: dto.results,
+    results: toResults(dto.results),
+    charts: dto.charts,
     pendingInterrupt: dto.pending_interrupt,
     error: dto.error,
   };
@@ -200,7 +298,7 @@ interface MessageDto {
   author: string;
   text: string;
   initials: string | null;
-  results: TestResults | null;
+  results: TestResultsDto | null;
 }
 
 function toMessage(dto: MessageDto): ChatMessage {
@@ -210,7 +308,7 @@ function toMessage(dto: MessageDto): ChatMessage {
     author: dto.author,
     text: dto.text,
     initials: dto.initials ?? undefined,
-    results: dto.results ?? undefined,
+    results: toResults(dto.results) ?? undefined,
   };
 }
 

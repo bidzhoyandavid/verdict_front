@@ -1,6 +1,6 @@
 import { useStore } from '../storeContext';
 import { GRADIENT } from '../theme';
-import { ResultTable } from './ui';
+import { ResultsTable } from './ResultsTable';
 import type { ChatMessage } from '../types';
 
 export function ChatBubble({ message, showAuthor = false }: { message: ChatMessage; showAuthor?: boolean }) {
@@ -54,7 +54,7 @@ export function ChatBubble({ message, showAuthor = false }: { message: ChatMessa
         >
           {message.text}
         </div>
-        {message.results && <ResultTable results={message.results} />}
+        {message.results && <ResultsTable results={message.results} />}
       </div>
     </div>
   );

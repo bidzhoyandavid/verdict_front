@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../storeContext';
 import { ChatBubble } from '../components/ChatBubble';
+import { ChartPanel } from '../components/ChartPanel';
+import { ChecksPanel } from '../components/ChecksPanel';
 import { InterruptCard } from '../components/InterruptCard';
+import { ResultsTable } from '../components/ResultsTable';
+import { VerdictCard } from '../components/VerdictCard';
 import { RunProgressList } from '../components/RunProgressList';
 import { Logo, StatusBadge } from '../components/ui';
 import { GRADIENT } from '../theme';
@@ -86,6 +90,24 @@ export function MainChat() {
             {messages.map((m) => (
               <ChatBubble key={m.id} message={m} showAuthor />
             ))}
+
+            {currentTest.results && currentTest.results.rows.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>Результаты по метрикам</div>
+                <ResultsTable results={currentTest.results} />
+              </div>
+            )}
+
+            {currentTest.results && currentTest.results.checks.length > 0 && (
+              <ChecksPanel checks={currentTest.results.checks} />
+            )}
+
+            {currentTest.charts && currentTest.charts.length > 0 && (
+              <ChartPanel charts={currentTest.charts} />
+            )}
+
+            {/* Вывод — последним: его читают после таблицы и графиков. */}
+            {currentTest.results?.verdict && <VerdictCard verdict={currentTest.results.verdict} />}
 
             {analyzing && progress.steps.length > 0 && <RunProgressList progress={progress} />}
 

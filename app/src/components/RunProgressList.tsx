@@ -5,11 +5,20 @@ import type { RunProgress } from '../types';
 const STEP_LABELS: Record<string, string> = {
   load: 'Загрузка данных',
   validate_profile: 'Валидация и профиль метрики',
+  assumption_checks: 'Проверка предпосылок и ковариат',
+  timeline_check: 'Проверка временной шкалы',
   outlier_review: 'Обработка выбросов',
   srm_gate: 'Проверка SRM',
   test_selector: 'Выбор стат-критерия',
-  stat_test: 'Статистический тест',
+  stat_test: 'Статистические тесты по метрикам',
+  ratio_metrics: 'Ratio-метрики',
+  multiple_testing: 'Поправка на множественные сравнения',
   guardrail: 'Guardrail-метрики',
+  power_check: 'Расчёт мощности',
+  charts: 'Построение графиков',
+  report_table: 'Сборка итоговой таблицы',
+  checks_summary: 'Сводка проверок',
+  verdict: 'Вывод и рекомендация',
   insight: 'Выводы',
 };
 

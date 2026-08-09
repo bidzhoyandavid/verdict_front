@@ -18,20 +18,67 @@ export type SettingsTab = 'profile' | 'company' | 'team' | 'theme' | 'roles';
 
 export type Role = 'Admin' | 'Analyst' | 'Product' | 'Marketer' | 'Other';
 
-export interface GroupResult {
-  group: string;
-  conversion: string;
-  delta: string;
-  /** Подсветка зелёным — значимый положительный результат. */
-  good?: boolean;
+/** Строка итоговой таблицы — одна метрика. */
+export interface ResultRow {
+  metric: string;
+  isPrimary: boolean;
+  controlGroup: string | null;
+  treatmentGroup: string | null;
+  controlValue: number | null;
+  treatmentValue: number | null;
+  nControl: number | null;
+  nTreatment: number | null;
+  absoluteDiff: number | null;
+  relativeDiff: number | null;
+  pValue: number | null;
+  /** p-value после поправки на множественные сравнения, если она применялась. */
+  adjustedPValue: number | null;
+  ciLow: number | null;
+  ciHigh: number | null;
+  significant: boolean | null;
+  method: string | null;
+  warnings: string[];
+}
+
+export type CheckStatus = 'ok' | 'warning' | 'failed' | 'skipped';
+
+export interface CheckResult {
+  name: string;
+  status: CheckStatus;
+  detail: string;
+}
+
+export interface Verdict {
+  code: string;
+  label: string;
+  action: string;
+  metric: string | null;
+  relativeDiff: number | null;
+  pValue: number | null;
+  blockingChecks: string[];
+  caveats: string[];
 }
 
 export interface TestResults {
-  groups: GroupResult[];
+  rows: ResultRow[];
+  checks: CheckResult[];
+  verdict: Verdict | null;
   /** Короткая сводка для колонки "Результаты" в All Tests. */
   short: string;
-  /** Полный отчёт графа — для детального вида. */
+  srmDetected: boolean;
+  correctionApplied: string | null;
+  powerVerdict: string | null;
+  timelineWarnings: string[];
+  guardrailViolations: string[];
   raw?: Record<string, unknown> | null;
+}
+
+/** Plotly-спека графика с бэкенда. */
+export interface Chart {
+  kind: string;
+  title: string;
+  data: unknown[];
+  layout: Record<string, unknown>;
 }
 
 /** Вариант обработки, предложенный агентом в HITL-паузе. */
@@ -59,6 +106,7 @@ export interface ABTest {
   date: string;
   datasetId?: string | null;
   results?: TestResults | null;
+  charts?: Chart[] | null;
   pendingInterrupt?: PendingInterrupt | null;
   error?: string | null;
 }

@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { useStore } from '../storeContext';
-import { GRADIENT, MONO, type Colors } from '../theme';
-import type { TestResults, TestStatus } from '../types';
+import { GRADIENT, type Colors } from '../theme';
+import type { TestStatus } from '../types';
 
 export function statusMeta(status: TestStatus, c: Colors) {
   const map: Record<TestStatus, { label: string; color: string }> = {
@@ -55,38 +55,6 @@ export function Field({
       {children}
     </label>
   );
-}
-
-export function ResultTable({ results }: { results: TestResults }) {
-  const { c, s } = useStore();
-  return (
-    <div style={{ marginTop: 10, border: `1px solid ${c.border}`, borderRadius: 10, overflow: 'hidden' }}>
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr 1fr',
-          fontFamily: MONO,
-          fontSize: 12,
-        }}
-      >
-        <div style={s.tableHeadCell}>Группа</div>
-        <div style={s.tableHeadCell}>Конверсия</div>
-        <div style={s.tableHeadCell}>Δ vs control</div>
-        {results.groups.map((g) => (
-          <Fragment3 key={g.group}>
-            <div style={s.tableCell}>{g.group}</div>
-            <div style={s.tableCell}>{g.conversion}</div>
-            <div style={g.good ? s.tableCellGood : s.tableCell}>{g.delta}</div>
-          </Fragment3>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/** grid-раскладка требует, чтобы ячейки были прямыми детьми — оборачиваем во фрагмент. */
-function Fragment3({ children }: { children: ReactNode }) {
-  return <>{children}</>;
 }
 
 export function Dropzone({
