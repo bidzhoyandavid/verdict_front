@@ -76,17 +76,17 @@ function ProfileTab() {
   return (
     <div style={{ maxWidth: 420, display: 'flex', flexDirection: 'column', gap: 14 }}>
       <Field label="Имя">
-        <input defaultValue={user.name} style={s.input} />
+        <input defaultValue={user?.name} style={s.input} />
       </Field>
       <Field label="Email">
-        <input defaultValue={user.email} style={s.input} />
+        <input defaultValue={user?.email} style={s.input} />
       </Field>
       <Field label="Пароль">
         <button style={s.secondaryButtonSmall}>Изменить пароль</button>
       </Field>
       <div style={s.fieldLabel}>
         Роль
-        <div style={{ fontSize: 14, color: c.textSecondary }}>{user.role}</div>
+        <div style={{ fontSize: 14, color: c.textSecondary }}>{user?.role}</div>
       </div>
     </div>
   );

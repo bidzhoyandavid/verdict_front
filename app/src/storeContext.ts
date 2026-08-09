@@ -7,6 +7,7 @@ import type {
   CompanyDoc,
   NewTestDraft,
   Role,
+  RunProgress,
   Screen,
   SettingsTab,
   TeamMember,
@@ -24,9 +25,13 @@ export interface Store {
   goScreen: (screen: Screen) => void;
   authMode: AuthMode;
   setAuthMode: (m: AuthMode) => void;
-  submitAuth: () => void;
+  submitAuth: (email: string, password: string, company: string) => Promise<void>;
+  authError: string | null;
+  authBusy: boolean;
 
-  user: User;
+  /** null до входа — экраны приложения рендерятся только с юзером. */
+  user: User | null;
+  signOut: () => void;
 
   tests: ABTest[];
   currentTestId: string | null;
@@ -37,6 +42,10 @@ export interface Store {
   messages: ChatMessage[];
   sendMessage: (text: string) => Promise<void>;
   awaitingReply: boolean;
+  /** Живой прогресс по шагам пайплайна из SSE. */
+  progress: RunProgress;
+  answerInterrupt: (decision: Record<string, unknown>) => Promise<void>;
+  completeOnboarding: (mdFile: File | null) => Promise<void>;
 
   sidebarCollapsed: boolean;
   toggleSidebar: () => void;

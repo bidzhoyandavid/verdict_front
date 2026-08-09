@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import * as api from './api/mockApi';
+import * as api from './api/client';
+import { useTestStream } from './api/useTestStream';
 import { makeStyles, palettes, type ThemeName } from './theme';
 import { StoreContext, type Store } from './storeContext';
 import type {
@@ -12,12 +13,23 @@ import type {
   Screen,
   SettingsTab,
   TeamMember,
+  User,
 } from './types';
+
+function errorText(error: unknown): string {
+  if (error instanceof api.ApiError) return error.message;
+  // fetch бросает TypeError, когда бэкенд просто не поднят — самая частая
+  // ошибка на локальной разработке, отдельно про это и пишем.
+  return 'Не удалось связаться с сервером';
+}
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<ThemeName>('light');
   const [screen, setScreen] = useState<Screen>('auth');
   const [authMode, setAuthMode] = useState<AuthMode>('signin');
+  const [user, setUser] = useState<User | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authBusy, setAuthBusy] = useState(false);
   const [tests, setTests] = useState<ABTest[]>([]);
   const [currentTestId, setCurrentTestId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -30,16 +42,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [companyDocs, setCompanyDocs] = useState<CompanyDoc[]>([]);
 
-  const user = api.getCurrentUser();
   const c = palettes[theme];
   const s = useMemo(() => makeStyles(c), [c]);
 
   const inApp = screen === 'main' || screen === 'all-tests' || screen === 'settings';
+  const currentTest = tests.find((t) => t.id === currentTestId);
+
+  // Восстановление сессии: токен переживает перезагрузку страницы.
+  useEffect(() => {
+    if (!api.getToken()) return;
+    void api
+      .fetchCurrentUser()
+      .then((me) => {
+        setUser(me);
+        setScreen(me.onboarded ? 'main' : 'onboard-form');
+      })
+      .catch(() => api.logout());
+  }, []);
+
+  const reloadTests = useCallback(async () => {
+    const rows = await api.fetchTests();
+    setTests(rows);
+  }, []);
 
   useEffect(() => {
-    if (!inApp || tests.length > 0) return;
-    void api.fetchTests().then(setTests);
-  }, [inApp, tests.length]);
+    if (!inApp || !user) return;
+    void reloadTests();
+  }, [inApp, user, reloadTests]);
 
   useEffect(() => {
     if (screen !== 'settings') return;
@@ -47,31 +76,82 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     void api.fetchCompanyDocs().then(setCompanyDocs);
   }, [screen]);
 
-  const currentTest = tests.find((t) => t.id === currentTestId);
-
+  // История чата перечитывается при смене теста; дальше сообщения приходят
+  // по стриму и дописываются точечно.
   useEffect(() => {
-    if (!currentTest) {
+    if (!currentTestId) {
       setMessages([]);
       return;
     }
     let stale = false;
-    void api.fetchMessages(currentTest).then((m) => {
-      if (!stale) setMessages(m);
+    void api.fetchMessages(currentTestId).then((rows) => {
+      if (!stale) setMessages(rows);
     });
     return () => {
       stale = true;
     };
-    // Перезагружаем историю при смене теста и при переходе analyzing → done.
-  }, [currentTest?.id, currentTest?.status]);
+  }, [currentTestId]);
+
+  const patchTest = useCallback((test: ABTest) => {
+    setTests((prev) => prev.map((t) => (t.id === test.id ? test : t)));
+  }, []);
+
+  // Историю перечитываем вместе с тестом: подписка на SSE может подняться
+  // уже после того, как быстрый run закончился, и его сообщения иначе
+  // не долетят до перезагрузки страницы.
+  const refreshCurrentTest = useCallback(() => {
+    if (!currentTestId) return;
+    void api.fetchTest(currentTestId).then(patchTest);
+    void api.fetchMessages(currentTestId).then((rows) => {
+      setAwaitingReply(false);
+      setMessages(rows);
+    });
+  }, [currentTestId, patchTest]);
+
+  const appendMessage = useCallback((message: ChatMessage) => {
+    setAwaitingReply(false);
+    setMessages((prev) => (prev.some((m) => m.id === message.id) ? prev : [...prev, message]));
+  }, []);
+
+  const progress = useTestStream(currentTestId, {
+    onMessage: appendMessage,
+    onTestChanged: refreshCurrentTest,
+  });
 
   const goScreen = useCallback((next: Screen) => {
     setScreen(next);
     setProfileMenuOpen(false);
   }, []);
 
-  const submitAuth = useCallback(() => {
-    setScreen(authMode === 'signup' ? 'onboard-form' : 'main');
-  }, [authMode]);
+  const submitAuth = useCallback(
+    async (email: string, password: string, company: string) => {
+      setAuthBusy(true);
+      setAuthError(null);
+      try {
+        const me =
+          authMode === 'signup'
+            ? await api.signup(email, password, company)
+            : await api.login(email, password);
+        setUser(me);
+        setScreen(authMode === 'signup' || !me.onboarded ? 'onboard-form' : 'main');
+      } catch (error) {
+        setAuthError(errorText(error));
+      } finally {
+        setAuthBusy(false);
+      }
+    },
+    [authMode],
+  );
+
+  const signOut = useCallback(() => {
+    api.logout();
+    setUser(null);
+    setTests([]);
+    setCurrentTestId(null);
+    setMessages([]);
+    setScreen('auth');
+    setProfileMenuOpen(false);
+  }, []);
 
   const selectTest = useCallback((id: string) => {
     setCurrentTestId(id);
@@ -84,38 +164,51 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setCurrentTestId(test.id);
     setScreen('main');
     setNewTestModalOpen(false);
-
-    // Демо вместо polling/websocket по статусу анализа.
-    setTimeout(() => {
-      void api.fetchTestResults(test.id).then((patch) => {
-        setTests((prev) => prev.map((t) => (t.id === test.id ? { ...t, ...patch } : t)));
-      });
-    }, api.ANALYSIS_DEMO_MS);
   }, []);
 
   const sendMessage = useCallback(
     async (text: string) => {
-      if (!currentTestId) return;
-      const own: ChatMessage = {
-        id: `u-${Date.now()}`,
-        author: user.name,
-        role: 'user',
-        initials: user.initials,
-        text,
-      };
-      setMessages((prev) => [...prev, own]);
+      if (!currentTestId || !user) return;
       setAwaitingReply(true);
-      const reply = await api.sendChatMessage(currentTestId, text);
-      setMessages((prev) => [...prev, reply]);
-      setAwaitingReply(false);
+      try {
+        const own = await api.sendChatMessage(currentTestId, text);
+        setMessages((prev) => [...prev, own]);
+        refreshCurrentTest();
+      } catch (error) {
+        setAwaitingReply(false);
+        appendMessage({
+          id: `err-${Date.now()}`,
+          role: 'agent',
+          author: 'Verdict AI',
+          text: errorText(error),
+        });
+      }
     },
-    [currentTestId, user.initials, user.name],
+    [appendMessage, currentTestId, refreshCurrentTest, user],
+  );
+
+  /** Ответ на HITL-паузу — выбранный вариант обработки. */
+  const answerInterrupt = useCallback(
+    async (decision: Record<string, unknown>) => {
+      if (!currentTestId) return;
+      await api.resumeTest(currentTestId, decision);
+      refreshCurrentTest();
+    },
+    [currentTestId, refreshCurrentTest],
   );
 
   const invite = useCallback(async (email: string, role: Role) => {
     const member = await api.inviteMember(email, role);
     setTeam((prev) => [...prev, member]);
   }, []);
+
+  const completeOnboarding = useCallback(
+    async (mdFile: File | null) => {
+      if (mdFile) await api.uploadCompanyDoc(mdFile);
+      if (user) setUser({ ...user, onboarded: true });
+    },
+    [user],
+  );
 
   const value: Store = {
     theme,
@@ -128,7 +221,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     authMode,
     setAuthMode,
     submitAuth,
+    authError,
+    authBusy,
     user,
+    signOut,
     tests,
     currentTestId,
     currentTest,
@@ -137,6 +233,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     messages,
     sendMessage,
     awaitingReply,
+    progress,
+    answerInterrupt,
+    completeOnboarding,
     sidebarCollapsed,
     toggleSidebar: () => setSidebarCollapsed((v) => !v),
     profileMenuOpen,

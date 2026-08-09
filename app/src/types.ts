@@ -2,7 +2,17 @@ export type Screen = 'auth' | 'onboard-form' | 'onboard-chat' | 'main' | 'all-te
 
 export type AuthMode = 'signin' | 'signup';
 
-export type TestStatus = 'queued' | 'analyzing' | 'done' | 'failed';
+/**
+ * `awaiting_input` — граф встал на HITL-паузе, ответ идёт через кнопки.
+ * `clarifying` — агент задал уточняющий вопрос в чате, ответ идёт текстом.
+ */
+export type TestStatus =
+  | 'queued'
+  | 'analyzing'
+  | 'awaiting_input'
+  | 'clarifying'
+  | 'done'
+  | 'failed';
 
 export type SettingsTab = 'profile' | 'company' | 'team' | 'theme' | 'roles';
 
@@ -20,6 +30,24 @@ export interface TestResults {
   groups: GroupResult[];
   /** Короткая сводка для колонки "Результаты" в All Tests. */
   short: string;
+  /** Полный отчёт графа — для детального вида. */
+  raw?: Record<string, unknown> | null;
+}
+
+/** Вариант обработки, предложенный агентом в HITL-паузе. */
+export interface InterruptOption {
+  method: string;
+  params: Record<string, unknown>;
+  n_affected: number;
+  share_affected: number;
+}
+
+export interface PendingInterrupt {
+  kind: string;
+  metric_col?: string;
+  outlier_share?: number;
+  options?: InterruptOption[];
+  recommendation?: string;
 }
 
 export interface ABTest {
@@ -29,7 +57,10 @@ export interface ABTest {
   status: TestStatus;
   decision: string;
   date: string;
-  results?: TestResults;
+  datasetId?: string | null;
+  results?: TestResults | null;
+  pendingInterrupt?: PendingInterrupt | null;
+  error?: string | null;
 }
 
 export interface ChatMessage {
@@ -64,7 +95,7 @@ export interface NewTestDraft {
   segment: string;
   startDate: string;
   endDate: string;
-  dataFileName: string | null;
+  dataFile: File | null;
 }
 
 export interface OnboardDraft {
@@ -72,12 +103,21 @@ export interface OnboardDraft {
   role: Role;
   company: string;
   goals: string[];
-  mdFileName: string | null;
+  mdFile: File | null;
 }
 
 export interface User {
+  id: string;
   name: string;
   email: string;
   role: Role;
   initials: string;
+  companyId: string;
+  onboarded: boolean;
+}
+
+/** Прогресс анализа: шаги пайплайна и те, что уже отработали. */
+export interface RunProgress {
+  steps: string[];
+  done: string[];
 }

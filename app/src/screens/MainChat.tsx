@@ -1,16 +1,30 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../storeContext';
 import { ChatBubble } from '../components/ChatBubble';
+import { InterruptCard } from '../components/InterruptCard';
+import { RunProgressList } from '../components/RunProgressList';
 import { Logo, StatusBadge } from '../components/ui';
 import { GRADIENT } from '../theme';
 
 export function MainChat() {
-  const { c, s, currentTest, messages, sendMessage, awaitingReply, setNewTestModalOpen, user } = useStore();
+  const { c, s, currentTest, messages, sendMessage, awaitingReply, progress, setNewTestModalOpen, user } =
+    useStore();
   const [draft, setDraft] = useState('');
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  const analyzing = currentTest?.status === 'analyzing';
+  const paused = currentTest?.status === 'awaiting_input';
+  // Пока агент занят или ждёт ответа на свой вопрос, писать в чат нельзя —
+  // бэкенд в этот момент всё равно ответит 409.
+  const inputDisabled = !currentTest || analyzing || paused;
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages.length, progress.done.length, currentTest?.status]);
 
   const submit = () => {
     const text = draft.trim();
-    if (!text) return;
+    if (!text || inputDisabled) return;
     setDraft('');
     void sendMessage(text);
   };
@@ -56,7 +70,7 @@ export function MainChat() {
           >
             <Logo size={52} radius={14} />
             <div style={{ fontSize: 18, fontWeight: 600 }}>
-              Добро пожаловать, {user.name.split(' ')[0]}
+              Добро пожаловать, {user?.name.split(' ')[0]}
             </div>
             <div style={{ fontSize: 14, color: c.textSecondary, maxWidth: 360 }}>
               Создайте тест — агент проанализирует данные и предложит выводы
@@ -72,7 +86,10 @@ export function MainChat() {
             {messages.map((m) => (
               <ChatBubble key={m.id} message={m} showAuthor />
             ))}
-            {(currentTest.status === 'analyzing' || awaitingReply) && (
+
+            {analyzing && progress.steps.length > 0 && <RunProgressList progress={progress} />}
+
+            {analyzing && progress.steps.length === 0 && (
               <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                 <div
                   style={{
@@ -83,13 +100,33 @@ export function MainChat() {
                     animation: 'pulseGlow 1.6s ease-in-out infinite',
                   }}
                 />
-                <div style={{ fontSize: 13, color: c.textSecondary }}>
-                  {currentTest.status === 'analyzing'
-                    ? '✦ Агент анализирует данные...'
-                    : '✦ Агент печатает...'}
-                </div>
+                <div style={{ fontSize: 13, color: c.textSecondary }}>✦ Агент анализирует данные...</div>
               </div>
             )}
+
+            {awaitingReply && !analyzing && (
+              <div style={{ fontSize: 13, color: c.textSecondary }}>✦ Агент печатает...</div>
+            )}
+
+            {paused && currentTest.pendingInterrupt && (
+              <InterruptCard interrupt={currentTest.pendingInterrupt} />
+            )}
+
+            {currentTest.status === 'failed' && currentTest.error && (
+              <div
+                style={{
+                  border: `1px solid ${c.error}55`,
+                  borderRadius: 10,
+                  padding: 12,
+                  fontSize: 13,
+                  color: c.error,
+                }}
+              >
+                Анализ упал: {currentTest.error}
+              </div>
+            )}
+
+            <div ref={bottomRef} />
           </>
         )}
       </div>
@@ -104,13 +141,16 @@ export function MainChat() {
           }}
         >
           <input
-            placeholder="Спросите агента про этот тест..."
+            placeholder={
+              paused ? 'Сначала ответьте на вопрос агента выше' : 'Спросите агента про этот тест...'
+            }
             value={draft}
+            disabled={inputDisabled}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') submit();
             }}
-            style={s.chatInput}
+            style={{ ...s.chatInput, opacity: inputDisabled ? 0.6 : 1 }}
           />
         </div>
       )}

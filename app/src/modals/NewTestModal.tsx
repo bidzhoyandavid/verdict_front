@@ -12,13 +12,14 @@ const EMPTY: NewTestDraft = {
   segment: '',
   startDate: '',
   endDate: '',
-  dataFileName: null,
+  dataFile: null,
 };
 
 export function NewTestModal() {
   const { c, s, setNewTestModalOpen, createTest } = useStore();
   const [draft, setDraft] = useState<NewTestDraft>(EMPTY);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   const close = () => setNewTestModalOpen(false);
@@ -26,7 +27,13 @@ export function NewTestModal() {
 
   const submit = async () => {
     setSubmitting(true);
-    await createTest(draft);
+    setError(null);
+    try {
+      await createTest(draft);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не удалось создать тест');
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -107,14 +114,14 @@ export function NewTestModal() {
       </div>
 
       <div style={s.fieldLabel}>
-        Файл с данными (csv, parquet, xlsx)
+        Файл с данными (csv, parquet)
         <Dropzone padding={16}>
-          {draft.dataFileName ? (
-            <div style={{ fontSize: 13, fontWeight: 500, color: c.textPrimary }}>{draft.dataFileName}</div>
+          {draft.dataFile ? (
+            <div style={{ fontSize: 13, fontWeight: 500, color: c.textPrimary }}>{draft.dataFile.name}</div>
           ) : (
             <>
               <div style={{ fontSize: 13, color: c.textSecondary }}>
-                Перетащите файл сюда · до 50 МБ · нужны колонки control/variant
+                Перетащите файл сюда · до 200 МБ · нужны колонки с группой и метрикой
               </div>
               <button type="button" onClick={() => fileInput.current?.click()} style={s.secondaryButtonSmall}>
                 Выбрать файл
@@ -122,11 +129,11 @@ export function NewTestModal() {
               <input
                 ref={fileInput}
                 type="file"
-                accept=".csv,.parquet,.xlsx"
+                accept=".csv,.parquet"
                 hidden
                 onChange={(e) => {
                   const file = e.target.files?.[0];
-                  if (file) patch({ dataFileName: file.name });
+                  if (file) patch({ dataFile: file });
                 }}
               />
             </>
@@ -134,16 +141,18 @@ export function NewTestModal() {
         </Dropzone>
       </div>
 
+      {error && <div style={{ fontSize: 13, color: c.error }}>{error}</div>}
+
       <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 6 }}>
         <button onClick={close} style={{ ...s.secondaryButton, width: 'auto', padding: '10px 16px' }}>
           Отмена
         </button>
         <button
           onClick={submit}
-          disabled={submitting}
+          disabled={submitting || !draft.name.trim() || !draft.dataFile}
           style={{ ...s.primaryButton, width: 'auto', padding: '10px 16px' }}
         >
-          ✦ Запустить анализ
+          {submitting ? 'Загружаем...' : '✦ Запустить анализ'}
         </button>
       </div>
     </Modal>

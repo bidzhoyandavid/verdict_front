@@ -4,9 +4,13 @@ import { Logo } from '../components/ui';
 import type { AuthMode } from '../types';
 
 export function Auth() {
-  const { c, s, authMode, setAuthMode, submitAuth } = useStore();
+  const { c, s, authMode, setAuthMode, submitAuth, authError, authBusy } = useStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [company, setCompany] = useState('');
+
+  const isSignup = authMode === 'signup';
+  const canSubmit = email.trim() && password.length >= 8 && (!isSignup || company.trim());
 
   const tabStyle = (mode: AuthMode) => ({
     ...s.authTab,
@@ -20,7 +24,7 @@ export function Auth() {
         style={{ width: 380, display: 'flex', flexDirection: 'column', gap: 24 }}
         onSubmit={(e) => {
           e.preventDefault();
-          submitAuth();
+          if (canSubmit && !authBusy) void submitAuth(email.trim(), password, company.trim());
         }}
       >
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
@@ -41,27 +45,44 @@ export function Auth() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <input
             placeholder="Email"
+            type="email"
+            autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             style={s.input}
           />
           <input
-            placeholder="Пароль"
+            placeholder="Пароль (минимум 8 символов)"
             type="password"
+            autoComplete={isSignup ? 'new-password' : 'current-password'}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             style={s.input}
           />
-          <button type="submit" style={s.primaryButton}>
-            {authMode === 'signin' ? 'Войти' : 'Зарегистрироваться'}
-          </button>
-          <button type="button" style={s.secondaryButton}>
-            Продолжить с Google
+          {isSignup && (
+            <input
+              placeholder="Компания"
+              value={company}
+              onChange={(e) => setCompany(e.target.value)}
+              style={s.input}
+            />
+          )}
+
+          {authError && (
+            <div style={{ fontSize: 13, color: c.error, textAlign: 'center' }}>{authError}</div>
+          )}
+
+          <button
+            type="submit"
+            disabled={!canSubmit || authBusy}
+            style={{ ...s.primaryButton, opacity: !canSubmit || authBusy ? 0.5 : 1 }}
+          >
+            {authBusy ? 'Подождите...' : isSignup ? 'Зарегистрироваться' : 'Войти'}
           </button>
         </div>
 
         <div style={{ textAlign: 'center', fontSize: 12, color: c.textSecondary }}>
-          Демо-прототип, любые данные подойдут
+          {isSignup ? 'Первый пользователь компании становится администратором' : ''}
         </div>
       </form>
     </div>

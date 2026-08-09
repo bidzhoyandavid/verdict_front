@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../storeContext';
 import { Dropzone, Field } from '../components/ui';
 import type { OnboardDraft, Role } from '../types';
@@ -7,15 +7,22 @@ const ROLES: Role[] = ['Admin', 'Analyst', 'Product', 'Marketer', 'Other'];
 const GOALS = ['Анализ A/B тестов', 'Поиск инсайтов', 'Отчёты для команды'];
 
 export function OnboardForm() {
-  const { c, s, goScreen } = useStore();
+  const { c, s, goScreen, user, completeOnboarding } = useStore();
+  const [submitting, setSubmitting] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState<OnboardDraft>({
     name: '',
     role: 'Admin',
     company: '',
     goals: [GOALS[0]],
-    mdFileName: null,
+    mdFile: null,
   });
+
+  // Компания и роль уже известны после регистрации — подставляем, но оставляем
+  // редактируемыми: имя пользователь на этом шаге как раз и вводит.
+  useEffect(() => {
+    if (user) setDraft((d) => ({ ...d, name: d.name || user.name, role: user.role }));
+  }, [user]);
 
   const toggleGoal = (goal: string) =>
     setDraft((d) => ({
@@ -93,9 +100,9 @@ export function OnboardForm() {
         <div style={s.fieldLabel}>
           Описание компании и продукта (.md)
           <Dropzone>
-            {draft.mdFileName ? (
+            {draft.mdFile ? (
               <>
-                <div style={{ fontSize: 13, fontWeight: 500 }}>{draft.mdFileName}</div>
+                <div style={{ fontSize: 13, fontWeight: 500 }}>{draft.mdFile.name}</div>
                 <div style={{ fontSize: 12, color: c.textSecondary }}>загружен</div>
               </>
             ) : (
@@ -115,7 +122,7 @@ export function OnboardForm() {
                   hidden
                   onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (file) setDraft((d) => ({ ...d, mdFileName: file.name }));
+                    if (file) setDraft((d) => ({ ...d, mdFile: file }));
                   }}
                 />
               </>
@@ -128,8 +135,17 @@ export function OnboardForm() {
           </div>
         </div>
 
-        <button onClick={() => goScreen('onboard-chat')} style={s.primaryButton}>
-          Продолжить
+        <button
+          onClick={async () => {
+            setSubmitting(true);
+            await completeOnboarding(draft.mdFile);
+            setSubmitting(false);
+            goScreen('onboard-chat');
+          }}
+          disabled={submitting || !draft.mdFile}
+          style={{ ...s.primaryButton, opacity: submitting || !draft.mdFile ? 0.5 : 1 }}
+        >
+          {submitting ? 'Загружаем...' : 'Продолжить'}
         </button>
       </div>
     </div>

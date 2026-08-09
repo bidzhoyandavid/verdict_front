@@ -7,6 +7,8 @@ export function statusMeta(status: TestStatus, c: Colors) {
   const map: Record<TestStatus, { label: string; color: string }> = {
     done: { label: 'Готово', color: c.success },
     analyzing: { label: 'Анализирует', color: c.warning },
+    awaiting_input: { label: 'Нужен ответ', color: c.accent },
+    clarifying: { label: 'Вопрос агента', color: c.accent },
     failed: { label: 'Ошибка', color: c.error },
     queued: { label: 'В очереди', color: c.textSecondary },
   };

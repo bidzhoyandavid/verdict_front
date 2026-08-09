@@ -19,6 +19,7 @@ export function Sidebar() {
     toggleTheme,
     theme,
     user,
+    signOut,
   } = useStore();
 
   const wrapStyle = {
@@ -183,9 +184,9 @@ export function Sidebar() {
                 fontWeight: 600,
               }}
             >
-              {user.initials}
+              {user?.initials}
             </div>
-            <div style={{ fontSize: 13, fontWeight: 500, flex: 1 }}>{user.name}</div>
+            <div style={{ fontSize: 13, fontWeight: 500, flex: 1 }}>{user?.name}</div>
           </div>
 
           {profileMenuOpen && (
@@ -212,7 +213,9 @@ export function Sidebar() {
                 Тема: {theme === 'light' ? 'Светлая' : 'Тёмная'}
               </div>
               <div style={s.menuItem}>Помощь / документация</div>
-              <div style={s.menuItemDanger}>Выйти</div>
+              <div onClick={signOut} style={s.menuItemDanger}>
+                Выйти
+              </div>
             </div>
           )}
         </div>
