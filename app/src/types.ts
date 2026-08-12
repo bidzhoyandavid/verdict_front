@@ -79,6 +79,10 @@ export interface Chart {
   title: string;
   data: unknown[];
   layout: Record<string, unknown>;
+  /** Подсказка лейаута от агента: на всю ширину или в половину строки. */
+  span?: 'full' | 'half';
+  /** Высота в px, если графику нужна нестандартная (растёт с числом метрик). */
+  height?: number;
 }
 
 /** Вариант обработки, предложенный агентом в HITL-паузе. */

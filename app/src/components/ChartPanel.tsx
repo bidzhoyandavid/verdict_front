@@ -3,7 +3,9 @@ import { useStore } from '../storeContext';
 import type { Chart } from '../types';
 
 const HEIGHT = 340;
-/** Два графика в ряд на широком экране, один — на узком. */
+/** Два графика в ряд на широком экране, один — на узком. Сколько колонок
+ * занимает конкретный график, решает бэкенд через `span`: только он знает
+ * состав и число метрик. */
 const GRID = 'repeat(auto-fit, minmax(420px, 1fr))';
 
 type PlotlyApi = {
@@ -34,6 +36,7 @@ function loadPlotly(): Promise<PlotlyApi> {
 function ChartFigure({ chart }: { chart: Chart }) {
   const container = useRef<HTMLDivElement>(null);
   const { theme, c } = useStore();
+  const height = chart.height ?? HEIGHT;
 
   useEffect(() => {
     const node = container.current;
@@ -48,7 +51,7 @@ function ChartFigure({ chart }: { chart: Chart }) {
       if (cancelled) return;
       const layout = {
         ...(chart.layout as Record<string, unknown>),
-        height: HEIGHT,
+        height,
         autosize: true,
         paper_bgcolor: 'rgba(0,0,0,0)',
         plot_bgcolor: 'rgba(0,0,0,0)',
@@ -68,9 +71,9 @@ function ChartFigure({ chart }: { chart: Chart }) {
       }
     };
     // Тема меняет цвет подписей — перерисовываем.
-  }, [chart, theme, c.textPrimary]);
+  }, [chart, theme, c.textPrimary, height]);
 
-  return <div ref={container} style={{ width: '100%', height: HEIGHT }} />;
+  return <div ref={container} style={{ width: '100%', height }} />;
 }
 
 export function ChartPanel({ charts }: { charts: Chart[] }) {
@@ -88,6 +91,8 @@ export function ChartPanel({ charts }: { charts: Chart[] }) {
             padding: 10,
             overflow: 'hidden',
             minWidth: 0,
+            // `1 / -1` — вся строка сетки независимо от числа колонок.
+            gridColumn: chart.span === 'full' ? '1 / -1' : undefined,
           }}
         >
           <ChartFigure chart={chart} />
