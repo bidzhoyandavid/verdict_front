@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../storeContext';
+import { AnsweredInterruptCard } from '../components/AnsweredInterruptCard';
 import { ChatBubble } from '../components/ChatBubble';
 import { ChartPanel } from '../components/ChartPanel';
 import { ChecksPanel } from '../components/ChecksPanel';
 import { InterruptCard } from '../components/InterruptCard';
 import { ResultsTable } from '../components/ResultsTable';
+import { SegmentBreakdown } from '../components/SegmentBreakdown';
 import { VerdictCard } from '../components/VerdictCard';
 import { RunProgressList } from '../components/RunProgressList';
 import { Logo, StatusBadge } from '../components/ui';
@@ -87,9 +89,13 @@ export function MainChat() {
 
         {currentTest && (
           <>
-            {messages.map((m) => (
-              <ChatBubble key={m.id} message={m} showAuthor />
-            ))}
+            {messages.map((m) =>
+              m.answeredInterrupt ? (
+                <AnsweredInterruptCard key={m.id} entry={m.answeredInterrupt} />
+              ) : (
+                <ChatBubble key={m.id} message={m} showAuthor />
+              ),
+            )}
 
             {currentTest.results && currentTest.results.rows.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -102,6 +108,10 @@ export function MainChat() {
               <ChecksPanel checks={currentTest.results.checks} />
             )}
 
+            {currentTest.results && currentTest.results.segments.length > 0 && (
+              <SegmentBreakdown segments={currentTest.results.segments} />
+            )}
+
             {currentTest.charts && currentTest.charts.length > 0 && (
               <ChartPanel charts={currentTest.charts} />
             )}
@@ -109,9 +119,15 @@ export function MainChat() {
             {/* Вывод — последним: его читают после таблицы и графиков. */}
             {currentTest.results?.verdict && <VerdictCard verdict={currentTest.results.verdict} />}
 
-            {analyzing && progress.steps.length > 0 && <RunProgressList progress={progress} />}
+            {analyzing && progress.mode === 'answer' && (
+              <div style={{ fontSize: 13, color: c.textSecondary }}>✦ Агент печатает...</div>
+            )}
 
-            {analyzing && progress.steps.length === 0 && (
+            {analyzing && progress.mode !== 'answer' && progress.steps.length > 0 && (
+              <RunProgressList progress={progress} />
+            )}
+
+            {analyzing && progress.mode !== 'answer' && progress.steps.length === 0 && (
               <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                 <div
                   style={{

@@ -1,6 +1,172 @@
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../storeContext';
 import { GRADIENT } from '../theme';
 import { statusMeta } from '../components/ui';
+import type { ABTest } from '../types';
+
+/** Строка теста со своим меню действий: переименовать / удалить. */
+function TestRow({ test }: { test: ABTest }) {
+  const { c, s, currentTestId, selectTest, renameTest, deleteTest } = useStore();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draftName, setDraftName] = useState(test.name);
+  const [hovered, setHovered] = useState(false);
+  const rowRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (!rowRef.current?.contains(e.target as Node)) closeMenu();
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [menuOpen]);
+
+  function closeMenu() {
+    setMenuOpen(false);
+    setConfirmDelete(false);
+  }
+
+  function startRename() {
+    setDraftName(test.name);
+    setEditing(true);
+    closeMenu();
+  }
+
+  async function commitRename() {
+    setEditing(false);
+    const next = draftName.trim();
+    if (!next || next === test.name) return;
+    await renameTest(test.id, next);
+  }
+
+  const active = currentTestId === test.id;
+
+  return (
+    <div
+      ref={rowRef}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        position: 'relative',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '7px 8px',
+        borderRadius: 7,
+        cursor: 'pointer',
+        fontSize: 13,
+        background: active ? c.bg : 'transparent',
+        color: c.textPrimary,
+      }}
+    >
+      {editing ? (
+        <input
+          autoFocus
+          value={draftName}
+          onChange={(e) => setDraftName(e.target.value)}
+          onBlur={() => void commitRename()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void commitRename();
+            if (e.key === 'Escape') setEditing(false);
+          }}
+          style={{
+            ...s.input,
+            padding: '2px 6px',
+            fontSize: 13,
+            flex: 1,
+            minWidth: 0,
+          }}
+        />
+      ) : (
+        <div
+          onClick={() => selectTest(test.id)}
+          style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}
+        >
+          {test.name}
+        </div>
+      )}
+
+      <div
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: '50%',
+          background: statusMeta(test.status, c).color,
+          flexShrink: 0,
+        }}
+      />
+
+      <div
+        onClick={(e) => {
+          e.stopPropagation();
+          setMenuOpen((v) => !v);
+          setConfirmDelete(false);
+        }}
+        title="Действия"
+        style={{
+          width: 18,
+          textAlign: 'center',
+          flexShrink: 0,
+          color: c.textSecondary,
+          lineHeight: 1,
+          // Кнопка появляется по наведению, но у активной строки и открытого
+          // меню держим её видимой — иначе меню «висит» без якоря.
+          visibility: hovered || menuOpen || active ? 'visible' : 'hidden',
+        }}
+      >
+        ⋯
+      </div>
+
+      {menuOpen && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 30,
+            right: 4,
+            zIndex: 20,
+            width: 180,
+            background: c.bg,
+            border: `1px solid ${c.border}`,
+            borderRadius: 10,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+            padding: 6,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 2,
+          }}
+        >
+          <div onClick={startRename} style={s.menuItem}>
+            Переименовать
+          </div>
+          <div
+            onClick={() => {
+              void navigator.clipboard?.writeText(test.id);
+              closeMenu();
+            }}
+            style={s.menuItem}
+          >
+            Скопировать ID
+          </div>
+          <div
+            onClick={() => {
+              if (!confirmDelete) {
+                setConfirmDelete(true);
+                return;
+              }
+              closeMenu();
+              void deleteTest(test.id);
+            }}
+            style={s.menuItemDanger}
+          >
+            {confirmDelete ? 'Точно удалить?' : 'Удалить тест'}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function Sidebar() {
   const {
@@ -9,8 +175,6 @@ export function Sidebar() {
     sidebarCollapsed,
     toggleSidebar,
     tests,
-    currentTestId,
-    selectTest,
     screen,
     goScreen,
     setNewTestModalOpen,
@@ -107,41 +271,7 @@ export function Sidebar() {
             Тесты
           </div>
           {tests.map((t) => (
-            <div
-              key={t.id}
-              onClick={() => selectTest(t.id)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '7px 8px',
-                borderRadius: 7,
-                cursor: 'pointer',
-                fontSize: 13,
-                background: currentTestId === t.id ? c.bg : 'transparent',
-                color: c.textPrimary,
-              }}
-            >
-              <div
-                style={{
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  flex: 1,
-                }}
-              >
-                {t.name}
-              </div>
-              <div
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: '50%',
-                  background: statusMeta(t.status, c).color,
-                  flexShrink: 0,
-                }}
-              />
-            </div>
+            <TestRow key={t.id} test={t} />
           ))}
         </div>
 

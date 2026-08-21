@@ -6,49 +6,64 @@ import type { ChatMessage } from '../types';
 
 /**
  * Ревью контекста компании: агент собирает черновик company_context.md из
- * загруженного .md, пользователь правит его репликами, каждая правка уходит
- * в chat_notes и черновик перегенерируется.
+ * загруженного .md, затем задаёт уточняющие вопросы по пустым критичным
+ * разделам (единица рандомизации, метрики, поле SRM).
  *
- * Адаптивного интервью из ТЗ здесь пока нет — бэкенд отдаёт линейный
- * draft/confirm, ветвящиеся вопросы появятся вместе с графом онбординга.
+ * Вопросы приходят с бэкенда (детерминированный анализ пробелов), задаются по
+ * одному, ответ дописывается в соответствующий раздел брифа. Если открытых
+ * вопросов нет, реплика уходит в chat_notes и черновик перегенерируется LLM —
+ * это дороже, поэтому только как запасной путь.
  */
 export function OnboardChat() {
   const { c, s, goScreen, user } = useStore();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [context, setContext] = useState('');
+  const [questions, setQuestions] = useState<api.OnboardingQuestion[]>([]);
   const [busy, setBusy] = useState(true);
   const notes = useRef<string[]>([]);
+
+  const agentSays = (text: string) =>
+    setMessages((prev) => [...prev, { id: `a-${Date.now()}-${prev.length}`, author: 'Verdict AI', role: 'agent', text }]);
+
+  const applyReview = (review: api.OnboardingReview, intro: string) => {
+    setContext(review.content);
+    setQuestions(review.questions);
+    agentSays(intro);
+    if (review.questions.length) agentSays(review.questions[0].text);
+  };
 
   const regenerate = async (chatNotes: string[]) => {
     setBusy(true);
     try {
-      const content = await api.draftCompanyContext({
+      const review = await api.draftCompanyContext({
         product_description: '',
         business_model: '',
         key_metrics: '',
         chat_notes: chatNotes,
       });
-      setContext(content);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `a-${Date.now()}`,
-          author: 'Verdict AI',
-          role: 'agent',
-          text: `Вот как я понял ваш продукт:\n\n${content}\n\nЕсли что-то не так — напишите, поправлю.`,
-        },
-      ]);
+      applyReview(review, `Вот как я понял ваш продукт:\n\n${review.content}`);
     } catch {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `e-${Date.now()}`,
-          author: 'Verdict AI',
-          role: 'agent',
-          text: 'Не удалось собрать контекст. Проверьте, что бэкенд запущен и ANTHROPIC_API_KEY задан.',
-        },
-      ]);
+      agentSays('Не удалось собрать контекст. Проверьте, что бэкенд запущен и ANTHROPIC_API_KEY задан.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const answerCurrent = async (text: string) => {
+    const current = questions[0];
+    setBusy(true);
+    try {
+      const review = await api.answerOnboardingQuestions(context, { [current.id]: text });
+      setContext(review.content);
+      // Ответ может открыть новый вопрос (например, ratio-метрика), поэтому
+      // список берём из ответа, а не просто отрезаем первый элемент.
+      const pending = review.questions.filter((q) => q.id !== current.id);
+      setQuestions(pending);
+      if (pending.length) agentSays(pending[0].text);
+      else agentSays('Спасибо, этого достаточно — все ключевые разделы заполнены.');
+    } catch {
+      agentSays('Не удалось сохранить ответ. Попробуйте ещё раз.');
     } finally {
       setBusy(false);
     }
@@ -72,6 +87,10 @@ export function OnboardChat() {
       { id: `u-${Date.now()}`, author: user?.name ?? '', role: 'user', initials: user?.initials, text },
     ]);
     setDraft('');
+    if (questions.length) {
+      void answerCurrent(text);
+      return;
+    }
     notes.current = [...notes.current, text];
     void regenerate(notes.current);
   };
@@ -107,6 +126,11 @@ export function OnboardChat() {
           <ChatBubble key={m.id} message={m} />
         ))}
         {busy && <div style={{ fontSize: 13, color: c.textSecondary }}>✦ Агент думает...</div>}
+        {!busy && questions.length > 0 && (
+          <div style={{ fontSize: 13, color: c.textSecondary, textAlign: 'center' }}>
+            Осталось уточнить: {questions.length}
+          </div>
+        )}
         <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
           <button
             onClick={() => void finish()}
@@ -119,7 +143,7 @@ export function OnboardChat() {
       </div>
       <div style={{ width: '100%', maxWidth: 640, padding: '12px 16px 24px', display: 'flex', gap: 8 }}>
         <input
-          placeholder="Ответить агенту..."
+          placeholder={questions.length ? 'Ответить на вопрос агента...' : 'Ответить агенту...'}
           value={draft}
           disabled={busy}
           onChange={(e) => setDraft(e.target.value)}

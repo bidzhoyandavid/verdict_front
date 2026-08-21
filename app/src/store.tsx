@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import * as api from './api/client';
 import { useTestStream } from './api/useTestStream';
 import { makeStyles, palettes, type ThemeName } from './theme';
@@ -96,17 +96,48 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setTests((prev) => prev.map((t) => (t.id === test.id ? test : t)));
   }, []);
 
+  // Каждый вызов получает свой номер: `state` и `run.started` прилетают
+  // подряд, ответы на них возвращаются в произвольном порядке, и без этого
+  // более старый ответ мог затереть более свежий.
+  const refreshSeq = useRef(0);
+  const refreshTimer = useRef<number | null>(null);
+
   // Историю перечитываем вместе с тестом: подписка на SSE может подняться
   // уже после того, как быстрый run закончился, и его сообщения иначе
   // не долетят до перезагрузки страницы.
   const refreshCurrentTest = useCallback(() => {
     if (!currentTestId) return;
-    void api.fetchTest(currentTestId).then(patchTest);
-    void api.fetchMessages(currentTestId).then((rows) => {
-      setAwaitingReply(false);
-      setMessages(rows);
-    });
+
+    // События идут пачками (state + run.started, resume + interrupt), а
+    // перезапрос тянет тест и всю историю целиком — склеиваем пачку в один.
+    if (refreshTimer.current !== null) window.clearTimeout(refreshTimer.current);
+    refreshTimer.current = window.setTimeout(() => {
+      refreshTimer.current = null;
+      const seq = ++refreshSeq.current;
+      const fresh = () => seq === refreshSeq.current;
+
+      void api.fetchTest(currentTestId).then((test) => {
+        if (fresh()) patchTest(test);
+      });
+      void api.fetchMessages(currentTestId).then((rows) => {
+        if (!fresh()) return;
+        setAwaitingReply(false);
+        setMessages(rows);
+      });
+    }, 60);
   }, [currentTestId, patchTest]);
+
+  // Смена теста отменяет перезапрос предыдущего — иначе его ответ приедет
+  // в уже открытый чужой тест.
+  useEffect(() => {
+    refreshSeq.current += 1;
+    return () => {
+      if (refreshTimer.current !== null) {
+        window.clearTimeout(refreshTimer.current);
+        refreshTimer.current = null;
+      }
+    };
+  }, [currentTestId]);
 
   const appendMessage = useCallback((message: ChatMessage) => {
     setAwaitingReply(false);
@@ -165,6 +196,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setScreen('main');
     setNewTestModalOpen(false);
   }, []);
+
+  const renameTest = useCallback(async (id: string, name: string) => {
+    const test = await api.renameTest(id, name);
+    setTests((prev) => prev.map((t) => (t.id === test.id ? { ...t, name: test.name } : t)));
+  }, []);
+
+  const deleteTest = useCallback(
+    async (id: string) => {
+      await api.deleteTest(id);
+      setTests((prev) => prev.filter((t) => t.id !== id));
+      // Открытый тест исчез — чат показывать нечего, уводим на список.
+      if (currentTestId === id) {
+        setCurrentTestId(null);
+        setMessages([]);
+        setScreen('all-tests');
+      }
+    },
+    [currentTestId],
+  );
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -230,6 +280,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     currentTest,
     selectTest,
     createTest,
+    renameTest,
+    deleteTest,
     messages,
     sendMessage,
     awaitingReply,

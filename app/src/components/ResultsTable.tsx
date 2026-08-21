@@ -4,6 +4,8 @@ import type { ResultRow, TestResults } from '../types';
 
 /** Числовые колонки фиксированной ширины — иначе значения «пляшут» между строк. */
 const COLUMNS = 'minmax(180px, 1.6fr) 96px 96px 96px 76px 88px 148px 72px';
+/** При нескольких ветках добавляется колонка с парой сравнения. */
+const COLUMNS_MULTI = 'minmax(160px, 1.4fr) minmax(150px, 1fr) 96px 96px 96px 76px 88px 148px 72px';
 
 function significantDigits(value: number): string {
   const abs = Math.abs(value);
@@ -31,7 +33,10 @@ function formatP(row: ResultRow): string {
 }
 
 function formatCI(row: ResultRow): string {
-  if (row.ciLow === null || row.ciHigh === null) return '—';
+  // `== null` on purpose: it catches undefined too. A row that predates a
+  // field arrives without it, and "not computed" must render as a dash rather
+  // than take down the table.
+  if (row.ciLow == null || row.ciHigh == null) return '—';
   return `${significantDigits(row.ciLow)} … ${significantDigits(row.ciHigh)}`;
 }
 
@@ -43,9 +48,17 @@ export function ResultsTable({ results }: { results: TestResults }) {
   const { c } = useStore();
   if (results.rows.length === 0) return null;
 
+  // Несколько пар — заголовки колонок не могут называться одной группой:
+  // в каждой строке контроль свой.
+  const comparisons = new Set(results.rows.map((row) => row.comparison));
+  // Омнибус-строка тоже требует колонку сравнения: значения по «контролю» и
+  // «варианту» у неё пустые, и без подписи строка выглядит сломанной.
+  const multi = comparisons.size > 1 || results.rows.some((row) => row.comparisonMode === 'omnibus');
+  const columns = multi ? COLUMNS_MULTI : COLUMNS;
+
   const first = results.rows[0];
-  const controlLabel = first.controlGroup ?? 'control';
-  const treatmentLabel = first.treatmentGroup ?? 'treatment';
+  const controlLabel = multi ? 'контроль' : first.controlGroup ?? 'control';
+  const treatmentLabel = multi ? 'вариант' : first.treatmentGroup ?? 'treatment';
 
   const head: React.CSSProperties = {
     padding: '9px 10px',
@@ -79,9 +92,10 @@ export function ResultsTable({ results }: { results: TestResults }) {
           background: c.bg,
         }}
       >
-        <div style={{ minWidth: 900 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: COLUMNS, background: c.surface }}>
+        <div style={{ minWidth: multi ? 1040 : 900 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: columns, background: c.surface }}>
             <div style={head}>Метрика</div>
+            {multi && <div style={head}>Сравнение</div>}
             <div style={{ ...head, textAlign: 'right' }}>{controlLabel}</div>
             <div style={{ ...head, textAlign: 'right' }}>{treatmentLabel}</div>
             <div style={{ ...head, textAlign: 'right' }}>Δ абс.</div>
@@ -112,6 +126,11 @@ export function ResultsTable({ results }: { results: TestResults }) {
                   </span>
                 )}
               </div>
+              {multi && (
+                <div style={{ ...cell, fontSize: 12, fontFamily: MONO, color: c.textSecondary }}>
+                  {row.comparison}
+                </div>
+              )}
               <div style={numeric}>{formatValue(row.controlValue)}</div>
               <div style={numeric}>{formatValue(row.treatmentValue)}</div>
               <div style={numeric}>{formatValue(row.absoluteDiff)}</div>
@@ -158,13 +177,18 @@ function Footnotes({ results }: { results: TestResults }) {
   const { c } = useStore();
   const notes: string[] = [];
 
+  const comparisons = new Set(results.rows.map((row) => row.comparison));
   if (results.correctionApplied) {
-    notes.push(
-      `p-value скорректированы поправкой ${results.correctionApplied} на ${results.rows.length} метрик`,
-    );
+    const scope =
+      comparisons.size > 1
+        ? `${results.rows.length} тестов (${new Set(results.rows.map((r) => r.metric)).size} метрик × ${comparisons.size} сравнений)`
+        : `${results.rows.length} метрик`;
+    notes.push(`p-value скорректированы поправкой ${results.correctionApplied} на ${scope}`);
   }
   const rowWarnings = results.rows.flatMap((row) =>
-    row.warnings.map((warning) => `${row.metric}: ${warning}`),
+    row.warnings.map((warning) =>
+      comparisons.size > 1 ? `${row.metric} (${row.comparison}): ${warning}` : `${row.metric}: ${warning}`,
+    ),
   );
   notes.push(...rowWarnings);
 

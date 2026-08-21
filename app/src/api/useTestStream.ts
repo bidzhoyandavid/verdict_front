@@ -9,7 +9,7 @@ interface Handlers {
   onTestChanged: () => void;
 }
 
-const EMPTY: RunProgress = { steps: [], done: [] };
+const EMPTY: RunProgress = { steps: [], done: [], reports: [], mode: 'analysis' };
 
 /**
  * Подписка на SSE-поток одного теста.
@@ -45,14 +45,31 @@ export function useTestStream(testId: string | null, handlers: Handlers): RunPro
     });
 
     on('run.started', (data) => {
-      setProgress({ steps: data.steps ?? [], done: [] });
+      setProgress({ steps: data.steps ?? [], done: [], reports: [], mode: data.mode ?? 'analysis' });
       handlersRef.current.onTestChanged();
+    });
+
+    // Реплика оказалась правкой, а не вопросом: начинается настоящий пересчёт.
+    on('run.mode', (data) => {
+      setProgress((prev) => ({ ...prev, steps: data.steps ?? prev.steps, mode: data.mode }));
+    });
+
+    // Развёртка по метрикам: шагов стало больше, чем было в скелете. Без этого
+    // список замирает на исходном и не показывает то, что реально считается.
+    on('plan.extended', (data) => {
+      setProgress((prev) => ({ ...prev, steps: data.steps ?? prev.steps }));
     });
 
     on('step.done', (data) => {
       setProgress((prev) => ({
+        ...prev,
         steps: prev.steps,
         done: prev.done.includes(data.step) ? prev.done : [...prev.done, data.step],
+        // Перезапуск шага (revise, ответ на HITL) заменяет свою запись,
+        // а не добавляет вторую — иначе лента растёт дублями.
+        reports: data.report
+          ? [...prev.reports.filter((r) => r.node !== data.report.node), data.report]
+          : prev.reports,
       }));
     });
 

@@ -6,6 +6,8 @@ const TONE: Record<string, 'good' | 'bad' | 'neutral'> = {
   loser: 'bad',
   invalid: 'bad',
   no_effect: 'neutral',
+  // Различия есть, но кто победил — неизвестно: это не «хорошо» и не «плохо».
+  difference_found: 'neutral',
   need_more_data: 'neutral',
   inconclusive: 'neutral',
 };
@@ -45,6 +47,40 @@ export function VerdictCard({ verdict }: { verdict: Verdict }) {
           </span>
         )}
       </div>
+
+      {verdict.srmOverride && (
+        <div
+          style={{
+            border: `1px solid ${c.error}66`,
+            background: `${c.error}14`,
+            borderRadius: 8,
+            padding: '8px 10px',
+            fontSize: 13,
+            color: c.error,
+            fontWeight: 600,
+          }}
+        >
+          SRM: разбиение по группам нарушено. Расчёты выполнены по вашему запросу — числа ниже
+          нельзя использовать для решения, пока не найдена причина перекоса.
+        </div>
+      )}
+
+      {verdict.srmSegmentFailures.length > 0 && !verdict.srmOverride && (
+        <div
+          style={{
+            border: `1px solid ${c.warning}66`,
+            background: `${c.warning}14`,
+            borderRadius: 8,
+            padding: '8px 10px',
+            fontSize: 13,
+            color: c.warning,
+          }}
+        >
+          Общий сплит корректен, но перекос есть внутри срезов:{' '}
+          {verdict.srmSegmentFailures.map((f) => `${f.column}: ${f.levels.join(', ')}`).join('; ')}. Выводы
+          по этим срезам делать нельзя, пока причина не найдена.
+        </div>
+      )}
 
       <div style={{ fontSize: 14, lineHeight: 1.5 }}>
         <span style={{ fontWeight: 600 }}>Рекомендация: </span>

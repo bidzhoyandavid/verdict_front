@@ -1,5 +1,6 @@
 import type {
   ABTest,
+  AnsweredInterrupt,
   Chart,
   CheckResult,
   ChatMessage,
@@ -135,6 +136,8 @@ interface ResultRowDto {
   is_primary: boolean;
   control_group: string | null;
   treatment_group: string | null;
+  comparison: string | null;
+  comparison_mode: string | null;
   control_value: number | null;
   treatment_value: number | null;
   n_control: number | null;
@@ -159,6 +162,15 @@ interface VerdictDto {
   p_value: number | null;
   blocking_checks: string[];
   caveats: string[];
+  srm_override: boolean;
+  srm_segment_failures: { column: string; levels: string[] }[];
+}
+
+interface SegmentResultsDto {
+  label: string;
+  fields: Record<string, string>;
+  n_rows: number;
+  rows: ResultRowDto[];
 }
 
 interface TestResultsDto {
@@ -167,10 +179,12 @@ interface TestResultsDto {
   verdict: VerdictDto | null;
   short: string;
   srm_detected: boolean;
+  srm_override: boolean;
   correction_applied: string | null;
   power_verdict: string | null;
   timeline_warnings: string[];
   guardrail_violations: string[];
+  segments: SegmentResultsDto[];
   raw: Record<string, unknown> | null;
 }
 
@@ -194,6 +208,8 @@ function toRow(dto: ResultRowDto): ResultRow {
     isPrimary: dto.is_primary,
     controlGroup: dto.control_group,
     treatmentGroup: dto.treatment_group,
+    comparison: dto.comparison ?? `${dto.treatment_group} vs ${dto.control_group}`,
+    comparisonMode: dto.comparison_mode ?? null,
     controlValue: dto.control_value,
     treatmentValue: dto.treatment_value,
     nControl: dto.n_control,
@@ -225,14 +241,23 @@ function toResults(dto: TestResultsDto | null): TestResults | null {
           pValue: dto.verdict.p_value,
           blockingChecks: dto.verdict.blocking_checks ?? [],
           caveats: dto.verdict.caveats ?? [],
+          srmOverride: dto.verdict.srm_override ?? false,
+          srmSegmentFailures: dto.verdict.srm_segment_failures ?? [],
         }
       : null,
     short: dto.short,
     srmDetected: dto.srm_detected,
+    srmOverride: dto.srm_override ?? false,
     correctionApplied: dto.correction_applied,
     powerVerdict: dto.power_verdict,
     timelineWarnings: dto.timeline_warnings ?? [],
     guardrailViolations: dto.guardrail_violations ?? [],
+    segments: (dto.segments ?? []).map((seg) => ({
+      label: seg.label,
+      fields: seg.fields ?? {},
+      nRows: seg.n_rows,
+      rows: (seg.rows ?? []).map(toRow),
+    })),
     raw: dto.raw,
   };
 }
@@ -290,6 +315,20 @@ export async function createTest(draft: NewTestDraft): Promise<ABTest> {
   return toTest(dto);
 }
 
+export async function renameTest(testId: string, name: string): Promise<ABTest> {
+  return toTest(
+    await request<TestDto>(`/tests/${testId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    }),
+  );
+}
+
+export async function deleteTest(testId: string): Promise<void> {
+  await request<void>(`/tests/${testId}`, { method: 'DELETE' });
+}
+
 /* -------------------------------------------------------------- messages */
 
 interface MessageDto {
@@ -299,6 +338,7 @@ interface MessageDto {
   text: string;
   initials: string | null;
   results: TestResultsDto | null;
+  interrupt: AnsweredInterrupt | null;
 }
 
 function toMessage(dto: MessageDto): ChatMessage {
@@ -309,6 +349,7 @@ function toMessage(dto: MessageDto): ChatMessage {
     text: dto.text,
     initials: dto.initials ?? undefined,
     results: toResults(dto.results) ?? undefined,
+    answeredInterrupt: dto.interrupt ?? undefined,
   };
 }
 
@@ -357,9 +398,45 @@ export interface OnboardingIntake {
   chat_notes: string[];
 }
 
-export async function draftCompanyContext(intake: OnboardingIntake): Promise<string> {
-  const body = await postJson<{ content: string }>('/onboarding/draft', intake);
+export interface OnboardingQuestion {
+  id: string;
+  section: string;
+  text: string;
+  kind: 'open' | 'confirm';
+  options: string[];
+}
+
+/** Brief plus what is still unfilled and what the agent wants to ask. */
+export interface OnboardingReview {
+  content: string;
+  missing: string[];
+  questions: OnboardingQuestion[];
+}
+
+export async function draftCompanyContext(intake: OnboardingIntake): Promise<OnboardingReview> {
+  return postJson<OnboardingReview>('/onboarding/draft', intake);
+}
+
+/** Blank template the company fills in by hand instead of doing the interview. */
+export async function fetchContextTemplate(): Promise<string> {
+  const body = await request<{ content: string }>('/onboarding/template');
   return body.content;
+}
+
+/** Normalise a hand-filled brief and get back the gaps + questions. */
+export async function reviewCompanyContext(content: string): Promise<OnboardingReview> {
+  return postJson<OnboardingReview>('/onboarding/review', { content });
+}
+
+export async function fetchCurrentCompanyContext(): Promise<OnboardingReview> {
+  return request<OnboardingReview>('/onboarding/current');
+}
+
+export async function answerOnboardingQuestions(
+  content: string,
+  answers: Record<string, string>,
+): Promise<OnboardingReview> {
+  return postJson<OnboardingReview>('/onboarding/answers', { content, answers });
 }
 
 export async function confirmCompanyContext(content: string): Promise<void> {

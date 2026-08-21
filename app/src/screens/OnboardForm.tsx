@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../storeContext';
 import { Dropzone, Field } from '../components/ui';
+import * as api from '../api/client';
 import type { OnboardDraft, Role } from '../types';
 
 const ROLES: Role[] = ['Admin', 'Analyst', 'Product', 'Marketer', 'Other'];
@@ -23,6 +24,26 @@ export function OnboardForm() {
   useEffect(() => {
     if (user) setDraft((d) => ({ ...d, name: d.name || user.name, role: user.role }));
   }, [user]);
+
+  const [templateError, setTemplateError] = useState('');
+
+  // Шаблон отдаёт бэкенд, а не статика фронта: секции в нём должны совпадать с
+  // теми, что ждёт парсер онбординга, и копия в репозитории фронта разъехалась
+  // бы с ними при первой же правке.
+  const downloadTemplate = async () => {
+    setTemplateError('');
+    try {
+      const content = await api.fetchContextTemplate();
+      const url = URL.createObjectURL(new Blob([content], { type: 'text/markdown;charset=utf-8' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'company_context_template.md';
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setTemplateError('Не удалось скачать шаблон');
+    }
+  };
 
   const toggleGoal = (goal: string) =>
     setDraft((d) => ({
@@ -129,9 +150,23 @@ export function OnboardForm() {
             )}
           </Dropzone>
           <div style={{ marginTop: 6, fontSize: 12 }}>
-            <a href="#" style={{ color: c.accent, textDecoration: 'none' }}>
+            <button
+              type="button"
+              onClick={downloadTemplate}
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                font: 'inherit',
+                color: c.accent,
+                cursor: 'pointer',
+              }}
+            >
               Скачать шаблон .md
-            </a>
+            </button>
+            {templateError && (
+              <span style={{ marginLeft: 8, color: c.error }}>{templateError}</span>
+            )}
           </div>
         </div>
 

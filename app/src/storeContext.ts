@@ -38,6 +38,8 @@ export interface Store {
   currentTest: ABTest | undefined;
   selectTest: (id: string) => void;
   createTest: (draft: NewTestDraft) => Promise<void>;
+  renameTest: (id: string, name: string) => Promise<void>;
+  deleteTest: (id: string) => Promise<void>;
 
   messages: ChatMessage[];
   sendMessage: (text: string) => Promise<void>;
