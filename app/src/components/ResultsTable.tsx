@@ -1,11 +1,19 @@
+import React, { useState } from 'react';
 import { useStore } from '../storeContext';
 import { MONO } from '../theme';
 import type { ResultRow, TestResults } from '../types';
 
 /** Числовые колонки фиксированной ширины — иначе значения «пляшут» между строк. */
 const COLUMNS = 'minmax(180px, 1.6fr) 96px 96px 96px 76px 88px 148px 72px';
-/** При нескольких ветках добавляется колонка с парой сравнения. */
-const COLUMNS_MULTI = 'minmax(160px, 1.4fr) minmax(150px, 1fr) 96px 96px 96px 76px 88px 148px 72px';
+
+/** Ключ строки: метрика в таблице одна, но таблиц столько же, сколько пар. */
+function rowKey(row: ResultRow): string {
+  return `${row.metric}|${row.comparison}`;
+}
+
+function formatCount(value: number | null | undefined): string {
+  return value === null || value === undefined ? '—' : value.toLocaleString('ru-RU');
+}
 
 function significantDigits(value: number): string {
   const abs = Math.abs(value);
@@ -41,24 +49,69 @@ function formatCI(row: ResultRow): string {
 }
 
 /**
- * Итоговая таблица анализа: строка на метрику. Числа приходят с бэкенда уже
- * посчитанными — здесь только форматирование и выравнивание.
+ * Итоговая таблица анализа. Каждое сравнение — своя таблица.
+ *
+ * Одна общая таблица со столбцом «Сравнение» смешивала строки двух разных
+ * сравнений: `label_price vs control` и `label_route vs control` читались
+ * подряд, и глазу приходилось самому разбирать, какая строка к какой ветке.
+ * Разделение по парам — то, как этот анализ и задумывался: каждая ветка
+ * сравнивается с контролем отдельно.
  */
 export function ResultsTable({ results }: { results: TestResults }) {
-  const { c } = useStore();
+  const [openHow, setOpenHow] = useState<string | null>(null);
   if (results.rows.length === 0) return null;
 
-  // Несколько пар — заголовки колонок не могут называться одной группой:
-  // в каждой строке контроль свой.
-  const comparisons = new Set(results.rows.map((row) => row.comparison));
-  // Омнибус-строка тоже требует колонку сравнения: значения по «контролю» и
-  // «варианту» у неё пустые, и без подписи строка выглядит сломанной.
-  const multi = comparisons.size > 1 || results.rows.some((row) => row.comparisonMode === 'omnibus');
-  const columns = multi ? COLUMNS_MULTI : COLUMNS;
+  // Группы в порядке первого появления, а не по алфавиту: строки приходят с
+  // бэкенда в порядке спеки, и подписи должны идти так же от прогона к прогону.
+  const groups: { comparison: string; rows: ResultRow[] }[] = [];
+  for (const row of results.rows) {
+    const hit = groups.find((group) => group.comparison === row.comparison);
+    if (hit) hit.rows.push(row);
+    else groups.push({ comparison: row.comparison, rows: [row] });
+  }
 
-  const first = results.rows[0];
-  const controlLabel = multi ? 'контроль' : first.controlGroup ?? 'control';
-  const treatmentLabel = multi ? 'вариант' : first.treatmentGroup ?? 'treatment';
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {groups.map((group) => (
+        <ComparisonTable
+          key={group.comparison}
+          comparison={group.comparison}
+          rows={group.rows}
+          // Одна пара — подпись не нужна: группы уже названы в шапке колонок.
+          captioned={groups.length > 1}
+          openHow={openHow}
+          setOpenHow={setOpenHow}
+        />
+      ))}
+      <Footnotes results={results} />
+    </div>
+  );
+}
+
+interface TableProps {
+  comparison: string;
+  rows: ResultRow[];
+  captioned: boolean;
+  openHow: string | null;
+  setOpenHow: (key: string | null) => void;
+}
+
+function ComparisonTable({ comparison, rows, captioned, openHow, setOpenHow }: TableProps) {
+  const { c } = useStore();
+
+  // Колонка «Δ абс.» — не всегда разница средних: на ранговом estimand это
+  // сдвиг распределения, и подписать её средним значило бы соврать в заголовке.
+  const estimands = new Set(
+    rows.map((row) => row.estimandLabel).filter((label): label is string => !!label),
+  );
+  const single = estimands.size === 1 ? [...estimands][0] : null;
+  const effectLabel = single && single !== 'разница средних' ? 'Эффект' : 'Δ абс.';
+  const effectHint = single ?? 'величина эффекта зависит от метрики';
+
+  const first = rows[0];
+  const omnibus = first.comparisonMode === 'omnibus';
+  const controlLabel = omnibus ? 'контроль' : first.controlGroup ?? 'control';
+  const treatmentLabel = omnibus ? 'вариант' : first.treatmentGroup ?? 'treatment';
 
   const head: React.CSSProperties = {
     padding: '9px 10px',
@@ -83,7 +136,18 @@ export function ResultsTable({ results }: { results: TestResults }) {
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {captioned && (
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>{comparison}</div>
+          {!omnibus && (
+            <div style={{ fontSize: 12, color: c.textSecondary, fontFamily: MONO }}>
+              n: {formatCount(first.nControl)} / {formatCount(first.nTreatment)}
+            </div>
+          )}
+        </div>
+      )}
+
       <div
         style={{
           border: `1px solid ${c.border}`,
@@ -92,86 +156,109 @@ export function ResultsTable({ results }: { results: TestResults }) {
           background: c.bg,
         }}
       >
-        <div style={{ minWidth: multi ? 1040 : 900 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: columns, background: c.surface }}>
+        <div style={{ minWidth: 900 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: COLUMNS, background: c.surface }}>
             <div style={head}>Метрика</div>
-            {multi && <div style={head}>Сравнение</div>}
             <div style={{ ...head, textAlign: 'right' }}>{controlLabel}</div>
             <div style={{ ...head, textAlign: 'right' }}>{treatmentLabel}</div>
-            <div style={{ ...head, textAlign: 'right' }}>Δ абс.</div>
+            <div style={{ ...head, textAlign: 'right' }} title={effectHint}>
+              {effectLabel}
+            </div>
             <div style={{ ...head, textAlign: 'right' }}>Δ %</div>
             <div style={{ ...head, textAlign: 'right' }}>p-value</div>
             <div style={{ ...head, textAlign: 'right' }}>95% CI</div>
             <div style={{ ...head, textAlign: 'center' }}>Значимо</div>
           </div>
 
-          {results.rows.map((row, index) => (
-            <div
-              key={row.metric}
-              title={row.warnings.join('\n')}
-              style={{
-                display: 'grid',
-                gridTemplateColumns: COLUMNS,
-                borderTop: `1px solid ${c.border}`,
-                background: index % 2 ? c.surface : 'transparent',
-                fontSize: 13,
-                alignItems: 'center',
-              }}
-            >
-              <div style={{ ...cell, fontWeight: row.isPrimary ? 600 : 400 }} title={row.metric}>
-                {row.metric}
-                {row.isPrimary && (
-                  <span style={{ color: c.accent, fontSize: 10, marginLeft: 6, fontWeight: 600 }}>
-                    ГЛАВНАЯ
-                  </span>
-                )}
-              </div>
-              {multi && (
-                <div style={{ ...cell, fontSize: 12, fontFamily: MONO, color: c.textSecondary }}>
-                  {row.comparison}
-                </div>
-              )}
-              <div style={numeric}>{formatValue(row.controlValue)}</div>
-              <div style={numeric}>{formatValue(row.treatmentValue)}</div>
-              <div style={numeric}>{formatValue(row.absoluteDiff)}</div>
+          {rows.map((row, index) => (
+            <React.Fragment key={rowKey(row)}>
               <div
+                onClick={() => row.how && setOpenHow(openHow === rowKey(row) ? null : rowKey(row))}
+                title={row.warnings.join('\n')}
                 style={{
-                  ...numeric,
-                  color:
-                    row.significant && row.relativeDiff !== null
-                      ? row.relativeDiff > 0
-                        ? c.success
-                        : c.error
-                      : c.textPrimary,
+                  display: 'grid',
+                  gridTemplateColumns: COLUMNS,
+                  borderTop: `1px solid ${c.border}`,
+                  background: index % 2 ? c.surface : 'transparent',
+                  fontSize: 13,
+                  alignItems: 'center',
+                  cursor: row.how ? 'pointer' : 'default',
                 }}
               >
-                {formatPercent(row.relativeDiff)}
-              </div>
-              <div style={numeric}>{formatP(row)}</div>
-              <div style={{ ...numeric, fontSize: 12, color: c.textSecondary }}>{formatCI(row)}</div>
-              <div style={{ ...cell, textAlign: 'center' }}>
-                <span
+                <div style={{ ...cell, fontWeight: row.isPrimary ? 600 : 400 }} title={row.metric}>
+                  {row.metric}
+                  {row.how && (
+                    <span style={{ color: c.accent, fontSize: 10, marginLeft: 6 }}>
+                      {openHow === rowKey(row) ? '▾' : '▸'}
+                    </span>
+                  )}
+                  {row.isPrimary && (
+                    <span style={{ color: c.accent, fontSize: 10, marginLeft: 6, fontWeight: 600 }}>
+                      ГЛАВНАЯ
+                    </span>
+                  )}
+                </div>
+                <div style={numeric}>{formatValue(row.controlValue)}</div>
+                <div style={numeric}>{formatValue(row.treatmentValue)}</div>
+                <div style={numeric} title={row.estimandLabel ?? undefined}>
+                  {formatValue(row.absoluteDiff)}
+                </div>
+                <div
                   style={{
-                    fontSize: 11,
-                    fontWeight: 600,
-                    padding: '2px 8px',
-                    borderRadius: 6,
-                    background: row.significant ? `${c.success}22` : `${c.textSecondary}18`,
-                    color: row.significant ? c.success : c.textSecondary,
+                    ...numeric,
+                    color:
+                      row.significant && row.relativeDiff !== null
+                        ? row.relativeDiff > 0
+                          ? c.success
+                          : c.error
+                        : c.textPrimary,
                   }}
                 >
-                  {row.significant === null ? '—' : row.significant ? 'да' : 'нет'}
-                </span>
+                  {formatPercent(row.relativeDiff)}
+                </div>
+                <div style={numeric}>{formatP(row)}</div>
+                <div style={{ ...numeric, fontSize: 12, color: c.textSecondary }}>
+                  {formatCI(row)}
+                </div>
+                <div style={{ ...cell, textAlign: 'center' }}>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      padding: '2px 8px',
+                      borderRadius: 6,
+                      background: row.significant ? `${c.success}22` : `${c.textSecondary}18`,
+                      color: row.significant ? c.success : c.textSecondary,
+                    }}
+                  >
+                    {row.significant === null ? '—' : row.significant ? 'да' : 'нет'}
+                  </span>
+                </div>
               </div>
-            </div>
+              {/* Обоснование рядом с числом, к которому относится: в карточке
+                  вердикта оно сгруппировано и метрику приходится искать. */}
+              {openHow === rowKey(row) && row.how && (
+                <div
+                  style={{
+                    borderTop: `1px solid ${c.border}`,
+                    background: c.surface,
+                    padding: '8px 12px',
+                    fontSize: 12,
+                    color: c.textSecondary,
+                    lineHeight: 1.45,
+                  }}
+                >
+                  {row.how}
+                </div>
+              )}
+            </React.Fragment>
           ))}
         </div>
       </div>
-
-      <Footnotes results={results} />
     </div>
   );
 }
+
 
 function Footnotes({ results }: { results: TestResults }) {
   const { c } = useStore();
@@ -185,6 +272,18 @@ function Footnotes({ results }: { results: TestResults }) {
         : `${results.rows.length} метрик`;
     notes.push(`p-value скорректированы поправкой ${results.correctionApplied} на ${scope}`);
   }
+  const estimands = [
+    ...new Set(
+      results.rows
+        .filter((row) => row.estimand && row.estimand !== 'mean_diff')
+        .map((row) => row.estimandLabel)
+        .filter((label): label is string => !!label),
+    ),
+  ];
+  if (estimands.length > 0) {
+    notes.push(`Величина эффекта и интервал — ${estimands.join(', ')}, а не разница средних`);
+  }
+
   const rowWarnings = results.rows.flatMap((row) =>
     row.warnings.map((warning) =>
       comparisons.size > 1 ? `${row.metric} (${row.comparison}): ${warning}` : `${row.metric}: ${warning}`,

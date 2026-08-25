@@ -40,8 +40,16 @@ export interface ResultRow {
   adjustedPValue: number | null;
   ciLow: number | null;
   ciHigh: number | null;
+  relativeCiLow: number | null;
+  relativeCiHigh: number | null;
   significant: boolean | null;
   method: string | null;
+  /** Какую величину сравнивали: mean_diff | prop_diff | ratio_diff | rank_shift. */
+  estimand: string | null;
+  /** То же по-русски — подпись для колонки «эффект». */
+  estimandLabel: string | null;
+  /** Одна фраза «что сравнивали и почему именно так». */
+  how: string | null;
   warnings: string[];
 }
 
@@ -53,19 +61,95 @@ export interface CheckResult {
   detail: string;
 }
 
+/** Из чего собран вывод: блоки, отвечающие на разные вопросы. */
+export interface Evidence {
+  effect: EvidenceEffect | null;
+  confidence: {
+    sample: {
+      nControl: number | null;
+      nTreatment: number | null;
+      controlGroup: string | null;
+      treatmentGroup: string | null;
+    } | null;
+    checks: {
+      total: number;
+      ok: number;
+      warning: number;
+      failed: number;
+      skipped: number;
+      failedNames: string[];
+      warningNames: string[];
+    };
+    correction: {
+      method: string;
+      tests: number;
+      significantBefore: number;
+      significantAfter: number;
+      lost: string[];
+      lostTotal: number;
+    } | null;
+    srm: { detected: boolean; override: boolean };
+  };
+  power: PowerFact | null;
+  guardrails: { watched: string[]; violations: GuardrailViolation[] } | null;
+  limits: string[];
+}
+
+export interface EvidenceEffect {
+  metric: string | null;
+  relativeDiff: number | null;
+  relativeCiLow: number | null;
+  relativeCiHigh: number | null;
+  estimandLabel: string | null;
+  method: string | null;
+  significant: boolean | null;
+}
+
+export interface PowerFact {
+  conclusion: string;
+  nPerGroupNow: number | null;
+  nPerGroupNeeded: number | null;
+  extraObservations: number | null;
+  daysLeft: number | null;
+}
+
+export interface GuardrailViolation {
+  metric: string;
+  label: string;
+  comparison: string;
+  relativeDiff: number | null;
+  pValue: number | null;
+}
+
 export interface Verdict {
   code: string;
   label: string;
   action: string;
   metric: string | null;
+  /** Пара веток, про которую вердикт: «label_price vs control». */
+  comparison: string | null;
+  comparisonMode: string | null;
+  controlGroup: string | null;
+  treatmentGroup: string | null;
+  significant: boolean | null;
   relativeDiff: number | null;
+  /** Интервал эффекта: решение принимают по диапазону, а не по точке. */
+  relativeCiLow: number | null;
+  relativeCiHigh: number | null;
   pValue: number | null;
+  /** Связный пересказ вывода. Пусто — читаются блоки `evidence`. */
+  narrative: string;
+  evidence: Evidence | null;
   blockingChecks: string[];
   caveats: string[];
   /** Расчёты сделаны поверх обнаруженного SRM по явному запросу аналитика. */
   srmOverride: boolean;
   /** Срезы, внутри которых нашёлся перекос при корректном общем сплите. */
   srmSegmentFailures: { column: string; levels: string[] }[];
+  /** По строке на метрику: что сравнивали, почему и каким критерием. */
+  methodNotes: string[];
+  /** То же, свёрнутое по паре «величина + критерий». */
+  methodSummary: MethodSummaryGroup[];
 }
 
 /** Тот же results_table, посчитанный внутри одного сегмента аудитории. */
@@ -144,6 +228,49 @@ export interface SegmentCandidate {
   n_levels: number;
   null_share: number;
   levels: { level: string; n_rows: number; share: number }[];
+}
+
+/** primary_metrics: метрика и то, как выглядит её распределение. */
+export interface MetricCandidate {
+  column: string;
+  id: string;
+  kind: string;
+  is_primary_guess: boolean;
+  /** Пусто, если профиль посчитать не удалось — метрика всё равно в списке. */
+  summary: string;
+}
+
+/** outlier_policy: метрика с хвостом и то, что агент предложил бы по ней одной. */
+export interface PolicyMetric {
+  column: string;
+  id: string;
+  recommended: string;
+  shape: string;
+  diagnostics: OutlierDiagnostics;
+}
+
+/** Группа метрик, посчитанных одинаково: «14 метрик — разница средних, Уэлч». */
+export interface MethodSummaryGroup {
+  estimand_label: string;
+  method: string;
+  metrics: string[];
+  notes: string[];
+}
+
+/** test_method: факты, на которых стоит выбор критерия. */
+export interface MethodEstimand {
+  kind: string;
+  reason: string;
+  source?: string;
+}
+
+export interface MethodRobustness {
+  clt_ok: boolean;
+  conservative: boolean;
+  reason: string;
+  alpha: number;
+  fpr: number;
+  fpr_ci: [number, number];
 }
 
 export interface SrmSegmentLevel {
@@ -244,6 +371,17 @@ export interface PendingInterrupt {
   allocation?: SrmAllocationRow[];
   causes?: string[];
   candidates?: SegmentCandidate[];
+  /** primary_metrics: из чего выбирают главные метрики. */
+  metrics?: MetricCandidate[];
+  /** outlier_policy: метрики, на которые распространится общий выбор. */
+  policy_metrics?: PolicyMetric[];
+  /** outlier_policy: похожи ли метрики настолько, чтобы обрабатывать одинаково. */
+  coherent?: boolean;
+  /** test_method: чем обосновывается предложенный критерий. */
+  profile?: Record<string, unknown>;
+  estimand?: MethodEstimand | null;
+  robustness?: MethodRobustness | null;
+  treatment?: { method: string; label: string } | null;
   segments?: SrmSegmentResult[];
   failed_segments?: { column: string; levels: string[] }[];
   options?: InterruptOption[];

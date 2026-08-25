@@ -4,7 +4,10 @@ import { ChartPanel } from './ChartPanel';
 import { MONO } from '../theme';
 import type {
   InterruptOption,
+  MethodRobustness,
+  MetricCandidate,
   NullStats,
+  PolicyMetric,
   OutlierComparisonRow,
   OutlierDiagnostics,
   PendingInterrupt,
@@ -57,6 +60,7 @@ export const METHOD_LABELS: Record<string, string> = {
   yes: 'Да, посчитать по сегментам',
   no: 'Нет, только в целом',
   separate: 'По отдельности',
+  per_metric: 'По каждой метрике отдельно',
   cross: 'По пересечению',
 };
 
@@ -75,6 +79,9 @@ export const INTERRUPT_TITLES: Record<string, string> = {
   heterogeneity_fields: 'По каким полям?',
   heterogeneity_mode: 'Пересечение сегментов или по отдельности?',
   alpha_setup: 'Какой уровень значимости использовать?',
+  primary_metrics: 'Какие метрики главные?',
+  outlier_policy: 'Обрабатывать выбросы одинаково у всех метрик?',
+  test_method: 'Каким критерием сравнивать группы?',
   outlier_review: 'Как обработать выбросы?',
   outlier_confirm: 'Согласны с обработкой выбросов?',
 };
@@ -426,6 +433,140 @@ function SegmentPicker({
   );
 }
 
+/** Результат калибровки — то единственное число, из-за которого предложенный
+ * критерий именно такой. Показывается отдельно от прозы: спорить с выбором
+ * имеет смысл, глядя на него.
+ */
+function CalibrationLine({ robustness }: { robustness: MethodRobustness }) {
+  const { c } = useStore();
+  const off = !robustness.clt_ok;
+
+  return (
+    <div
+      style={{
+        fontSize: 12,
+        color: off ? c.error : c.textSecondary,
+        border: `1px solid ${off ? `${c.error}55` : c.border}`,
+        borderRadius: 8,
+        padding: '6px 10px',
+      }}
+    >
+      Ложных срабатываний {(robustness.fpr * 100).toFixed(1)}% при заявленных{' '}
+      {(robustness.alpha * 100).toFixed(0)}% (интервал{' '}
+      {(robustness.fpr_ci[0] * 100).toFixed(1)}–{(robustness.fpr_ci[1] * 100).toFixed(1)}%)
+      {robustness.conservative && ' — критерий осторожен, реальный эффект может не дотянуть'}
+    </div>
+  );
+}
+
+/** Метрики, на которые распространится общий выбор обработки.
+ *
+ * Рядом с каждой — что агент предложил бы по ней одной: решение «одинаково или
+ * по-разному» принимается по тому, насколько эти рекомендации и формы
+ * расходятся, а не по числу строк в таблице.
+ */
+function PolicyMetricsTable({ metrics }: { metrics: PolicyMetric[] }) {
+  const { c } = useStore();
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {metrics.map((metric) => (
+        <div key={metric.id} style={{ fontSize: 12, color: c.textSecondary }}>
+          <span style={{ fontFamily: MONO, fontSize: 13, color: c.text }}>{metric.column}</span>
+          {' · '}
+          скос {metric.diagnostics.skewness.toFixed(1)}, выбросов{' '}
+          {(metric.diagnostics.outlier_share * 100).toFixed(1)}%
+          {metric.diagnostics.zero_share > 0.1 &&
+            `, нулей ${(metric.diagnostics.zero_share * 100).toFixed(0)}%`}
+          {' → '}
+          {METHOD_LABELS[metric.recommended] ?? metric.recommended}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Выбор главных метрик.
+ *
+ * Отдельный компонент, а не `SegmentPicker` с другими подписями: там выбирают
+ * срезы и показывают их уровни, здесь — метрики и форму их распределения. Одна
+ * галочка на строку в обоих случаях, но смотрит аналитик на разное.
+ */
+function MetricPicker({ metrics, recommended }: { metrics: MetricCandidate[]; recommended?: string }) {
+  const { c, s, answerInterrupt } = useStore();
+  const [chosen, setChosen] = useState<string[]>(() =>
+    metrics.filter((m) => m.is_primary_guess).map((m) => m.id),
+  );
+  const [busy, setBusy] = useState(false);
+
+  const toggle = (id: string) =>
+    setChosen((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
+  const send = async (ids: string[]) => {
+    setBusy(true);
+    try {
+      await answerInterrupt({ metrics: ids });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {metrics.map((metric) => (
+          <label
+            key={metric.id}
+            style={{
+              display: 'flex',
+              gap: 10,
+              alignItems: 'flex-start',
+              border: `1px solid ${chosen.includes(metric.id) ? c.accent : c.border}`,
+              borderRadius: 8,
+              padding: '8px 10px',
+              cursor: 'pointer',
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={chosen.includes(metric.id)}
+              onChange={() => toggle(metric.id)}
+              disabled={busy}
+              style={{ marginTop: 3 }}
+            />
+            <span style={{ minWidth: 0 }}>
+              <span style={{ fontFamily: MONO, fontSize: 13 }}>{metric.column}</span>
+              {metric.column === recommended && (
+                <span style={{ fontSize: 12, color: c.accent }}> · рекомендуется</span>
+              )}
+              {metric.summary && (
+                <div style={{ fontSize: 12, color: c.textSecondary }}>{metric.summary}</div>
+              )}
+            </span>
+          </label>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button
+          onClick={() => void send(chosen)}
+          disabled={busy || chosen.length === 0}
+          style={{ ...s.primaryButton, opacity: busy || chosen.length === 0 ? 0.5 : 1 }}
+        >
+          Разобрать выбранные
+        </button>
+        <button
+          onClick={() => void send(metrics.map((m) => m.id))}
+          disabled={busy}
+          style={{ ...s.secondaryButton, opacity: busy ? 0.6 : 1 }}
+        >
+          Все главные
+        </button>
+      </div>
+    </>
+  );
+}
+
 /** Результат SRM внутри срезов: где перекос есть и на каких значениях. */
 function SegmentResults({ segments }: { segments: SrmSegmentResult[] }) {
   const { c } = useStore();
@@ -756,6 +897,9 @@ export function InterruptCard({ interrupt }: { interrupt: PendingInterrupt }) {
   const isHeterogeneityFields = interrupt.kind === 'heterogeneity_fields';
   const isHeterogeneityMode = interrupt.kind === 'heterogeneity_mode';
   const isAlphaSetup = interrupt.kind === 'alpha_setup';
+  const isMetricPicker = interrupt.kind === 'primary_metrics';
+  const isOutlierPolicy = interrupt.kind === 'outlier_policy';
+  const isMethodChoice = interrupt.kind === 'test_method';
   // У этих вопросов ответ — это решение аналитика, а не обработка строк, и
   // объяснение уже написано агентом в интерпретации шага.
   const usesReportText =
@@ -771,7 +915,10 @@ export function InterruptCard({ interrupt }: { interrupt: PendingInterrupt }) {
     isHeterogeneityGate ||
     isHeterogeneityFields ||
     isHeterogeneityMode ||
-    isAlphaSetup;
+    isAlphaSetup ||
+    isMetricPicker ||
+    isOutlierPolicy ||
+    isMethodChoice;
 
   const choose = async (option: InterruptOption) => {
     setBusy(true);
@@ -825,6 +972,21 @@ export function InterruptCard({ interrupt }: { interrupt: PendingInterrupt }) {
       )}
 
       {isSegmentPicker && interrupt.candidates && <SegmentPicker candidates={interrupt.candidates} />}
+
+      {isMethodChoice && interrupt.robustness && (
+        <CalibrationLine robustness={interrupt.robustness} />
+      )}
+
+      {isOutlierPolicy && interrupt.policy_metrics && (
+        <PolicyMetricsTable metrics={interrupt.policy_metrics} />
+      )}
+
+      {isMetricPicker && interrupt.metrics && (
+        <MetricPicker
+          metrics={interrupt.metrics}
+          recommended={interrupt.recommendation ?? undefined}
+        />
+      )}
 
       {isHeterogeneityFields && interrupt.candidates && (
         <SegmentPicker

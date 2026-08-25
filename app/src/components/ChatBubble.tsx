@@ -3,7 +3,28 @@ import { GRADIENT } from '../theme';
 import { ResultsTable } from './ResultsTable';
 import type { ChatMessage } from '../types';
 
-export function ChatBubble({ message, showAuthor = false }: { message: ChatMessage; showAuthor?: boolean }) {
+interface Props {
+  message: ChatMessage;
+  showAuthor?: boolean;
+  /**
+   * Снапшот результатов на момент этого прогона уже неактуален: после него
+   * был ещё один прогон (например, досчёт метрики). Разворачивается по клику —
+   * раскрытая устаревшая таблица прямо в ленте читается как свежий ответ.
+   */
+  staleResults?: boolean;
+  /**
+   * Свежий снапшот дублирует живую панель прогона, которую чат рисует сразу
+   * под этим сообщением, — инлайн-таблица тут не нужна.
+   */
+  hideResults?: boolean;
+}
+
+export function ChatBubble({
+  message,
+  showAuthor = false,
+  staleResults = false,
+  hideResults = false,
+}: Props) {
   const { c } = useStore();
   const isAgent = message.role === 'agent';
 
@@ -54,7 +75,20 @@ export function ChatBubble({ message, showAuthor = false }: { message: ChatMessa
         >
           {message.text}
         </div>
-        {message.results && <ResultsTable results={message.results} />}
+        {message.results &&
+          !hideResults &&
+          (staleResults ? (
+            <details style={{ marginTop: 6 }}>
+              <summary style={{ fontSize: 12, color: c.textSecondary, cursor: 'pointer' }}>
+                Результаты на момент этого прогона (устарели)
+              </summary>
+              <div style={{ marginTop: 6 }}>
+                <ResultsTable results={message.results} />
+              </div>
+            </details>
+          ) : (
+            <ResultsTable results={message.results} />
+          ))}
       </div>
     </div>
   );

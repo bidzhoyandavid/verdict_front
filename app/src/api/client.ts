@@ -1,10 +1,12 @@
 import type {
+  Evidence,
   ABTest,
   AnsweredInterrupt,
   Chart,
   CheckResult,
   ChatMessage,
   CompanyDoc,
+  MethodSummaryGroup,
   NewTestDraft,
   ResultRow,
   Role,
@@ -148,9 +150,70 @@ interface ResultRowDto {
   adjusted_p_value: number | null;
   ci_low: number | null;
   ci_high: number | null;
+  relative_ci_low: number | null;
+  relative_ci_high: number | null;
   significant: boolean | null;
   method: string | null;
+  estimand: string | null;
+  estimand_label: string | null;
+  how: string | null;
   warnings: string[];
+}
+
+interface EvidenceDto {
+  effect: {
+    metric: string | null;
+    relative_diff: number | null;
+    relative_ci_low: number | null;
+    relative_ci_high: number | null;
+    estimand_label: string | null;
+    method: string | null;
+    significant: boolean | null;
+  } | null;
+  confidence: {
+    sample: {
+      n_control: number | null;
+      n_treatment: number | null;
+      control_group: string | null;
+      treatment_group: string | null;
+    } | null;
+    checks: {
+      total: number;
+      ok: number;
+      warning: number;
+      failed: number;
+      skipped: number;
+      failed_names: string[];
+      warning_names: string[];
+    };
+    correction: {
+      method: string;
+      tests: number;
+      significant_before: number;
+      significant_after: number;
+      lost: string[];
+      lost_total: number;
+    } | null;
+    srm: { detected: boolean; override: boolean };
+  };
+  power: {
+    conclusion: string;
+    n_per_group_now: number | null;
+    n_per_group_needed: number | null;
+    extra_observations: number | null;
+    days_left: number | null;
+  } | null;
+  guardrails: {
+    watched: string[];
+    violations: {
+      metric: string;
+      label: string;
+      comparison: string;
+      relative_diff: number | null;
+      p_value: number | null;
+    }[];
+  } | null;
+  limits: string[];
 }
 
 interface VerdictDto {
@@ -158,12 +221,100 @@ interface VerdictDto {
   label: string;
   action: string;
   metric: string | null;
+  comparison?: string | null;
+  comparison_mode?: string | null;
+  control_group?: string | null;
+  treatment_group?: string | null;
+  significant?: boolean | null;
   relative_diff: number | null;
+  relative_ci_low: number | null;
+  relative_ci_high: number | null;
   p_value: number | null;
   blocking_checks: string[];
   caveats: string[];
   srm_override: boolean;
   srm_segment_failures: { column: string; levels: string[] }[];
+  method_notes: string[];
+  method_summary?: MethodSummaryGroup[];
+  narrative?: string;
+  evidence?: EvidenceDto | null;
+}
+
+/** snake_case с бэкенда → camelCase. Старый прогон приходит без блока — null. */
+function toEvidence(dto: EvidenceDto | null | undefined): Evidence | null {
+  if (!dto) return null;
+  const checks = dto.confidence?.checks;
+  const correction = dto.confidence?.correction;
+  const sample = dto.confidence?.sample;
+  const power = dto.power;
+  return {
+    effect: dto.effect
+      ? {
+          metric: dto.effect.metric,
+          relativeDiff: dto.effect.relative_diff,
+          relativeCiLow: dto.effect.relative_ci_low,
+          relativeCiHigh: dto.effect.relative_ci_high,
+          estimandLabel: dto.effect.estimand_label,
+          method: dto.effect.method,
+          significant: dto.effect.significant,
+        }
+      : null,
+    confidence: {
+      sample: sample
+        ? {
+            nControl: sample.n_control,
+            nTreatment: sample.n_treatment,
+            controlGroup: sample.control_group,
+            treatmentGroup: sample.treatment_group,
+          }
+        : null,
+      checks: {
+        total: checks?.total ?? 0,
+        ok: checks?.ok ?? 0,
+        warning: checks?.warning ?? 0,
+        failed: checks?.failed ?? 0,
+        skipped: checks?.skipped ?? 0,
+        failedNames: checks?.failed_names ?? [],
+        warningNames: checks?.warning_names ?? [],
+      },
+      correction: correction
+        ? {
+            method: correction.method,
+            tests: correction.tests,
+            significantBefore: correction.significant_before,
+            significantAfter: correction.significant_after,
+            lost: correction.lost ?? [],
+            lostTotal: correction.lost_total ?? 0,
+          }
+        : null,
+      srm: {
+        detected: dto.confidence?.srm?.detected ?? false,
+        override: dto.confidence?.srm?.override ?? false,
+      },
+    },
+    power: power
+      ? {
+          conclusion: power.conclusion,
+          nPerGroupNow: power.n_per_group_now,
+          nPerGroupNeeded: power.n_per_group_needed,
+          extraObservations: power.extra_observations,
+          daysLeft: power.days_left,
+        }
+      : null,
+    guardrails: dto.guardrails
+      ? {
+          watched: dto.guardrails.watched ?? [],
+          violations: (dto.guardrails.violations ?? []).map((v) => ({
+            metric: v.metric,
+            label: v.label,
+            comparison: v.comparison,
+            relativeDiff: v.relative_diff,
+            pValue: v.p_value,
+          })),
+        }
+      : null,
+    limits: dto.limits ?? [],
+  };
 }
 
 interface SegmentResultsDto {
@@ -220,8 +371,13 @@ function toRow(dto: ResultRowDto): ResultRow {
     adjustedPValue: dto.adjusted_p_value,
     ciLow: dto.ci_low,
     ciHigh: dto.ci_high,
+    relativeCiLow: dto.relative_ci_low ?? null,
+    relativeCiHigh: dto.relative_ci_high ?? null,
     significant: dto.significant,
     method: dto.method,
+    estimand: dto.estimand ?? null,
+    estimandLabel: dto.estimand_label ?? null,
+    how: dto.how ?? null,
     warnings: dto.warnings ?? [],
   };
 }
@@ -237,12 +393,23 @@ function toResults(dto: TestResultsDto | null): TestResults | null {
           label: dto.verdict.label,
           action: dto.verdict.action,
           metric: dto.verdict.metric,
+          comparison: dto.verdict.comparison ?? null,
+          comparisonMode: dto.verdict.comparison_mode ?? null,
+          controlGroup: dto.verdict.control_group ?? null,
+          treatmentGroup: dto.verdict.treatment_group ?? null,
+          significant: dto.verdict.significant ?? null,
           relativeDiff: dto.verdict.relative_diff,
+          relativeCiLow: dto.verdict.relative_ci_low ?? null,
+          relativeCiHigh: dto.verdict.relative_ci_high ?? null,
           pValue: dto.verdict.p_value,
+          narrative: dto.verdict.narrative ?? '',
+          evidence: toEvidence(dto.verdict.evidence),
           blockingChecks: dto.verdict.blocking_checks ?? [],
           caveats: dto.verdict.caveats ?? [],
           srmOverride: dto.verdict.srm_override ?? false,
           srmSegmentFailures: dto.verdict.srm_segment_failures ?? [],
+          methodNotes: dto.verdict.method_notes ?? [],
+          methodSummary: dto.verdict.method_summary ?? [],
         }
       : null,
     short: dto.short,

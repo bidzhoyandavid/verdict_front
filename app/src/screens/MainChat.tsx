@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { useStore } from '../storeContext';
 import { AnsweredInterruptCard } from '../components/AnsweredInterruptCard';
 import { ChatBubble } from '../components/ChatBubble';
+import { Headline } from '../components/Headline';
 import { ChartPanel } from '../components/ChartPanel';
 import { ChecksPanel } from '../components/ChecksPanel';
 import { InterruptCard } from '../components/InterruptCard';
@@ -28,12 +29,52 @@ export function MainChat() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length, progress.done.length, currentTest?.status]);
 
+  // Панель прогона (таблица, проверки, сегменты, графики, вердикт) — не хвост
+  // ленты, а часть того сообщения, которым прогон закончился. Иначе она висела
+  // бы под ответом на любой заданный позже вопрос и читалась как ответ на него.
+  const runMessageId = (() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      if (messages[i].results) return messages[i].id;
+    }
+    return null;
+  })();
+
   const submit = () => {
     const text = draft.trim();
     if (!text || inputDisabled) return;
     setDraft('');
     void sendMessage(text);
   };
+
+  const runPanel = currentTest && (
+    <>
+      {/* Заголовок первым: аналитик читает вывод, а потом идёт за числами в
+          таблицу — а не собирает вывод сам, просмотрев все строки. */}
+      {currentTest.results && <Headline results={currentTest.results} />}
+
+      {currentTest.results && currentTest.results.rows.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>Результаты по метрикам</div>
+          <ResultsTable results={currentTest.results} />
+        </div>
+      )}
+
+      {currentTest.results && currentTest.results.checks.length > 0 && (
+        <ChecksPanel checks={currentTest.results.checks} />
+      )}
+
+      {currentTest.results && currentTest.results.segments.length > 0 && (
+        <SegmentBreakdown segments={currentTest.results.segments} />
+      )}
+
+      {currentTest.charts && currentTest.charts.length > 0 && (
+        <ChartPanel charts={currentTest.charts} />
+      )}
+
+      {/* Вывод — последним: его читают после таблицы и графиков. */}
+      {currentTest.results?.verdict && <VerdictCard verdict={currentTest.results.verdict} />}
+    </>
+  );
 
   return (
     <>
@@ -89,35 +130,25 @@ export function MainChat() {
 
         {currentTest && (
           <>
-            {messages.map((m) =>
-              m.answeredInterrupt ? (
-                <AnsweredInterruptCard key={m.id} entry={m.answeredInterrupt} />
-              ) : (
-                <ChatBubble key={m.id} message={m} showAuthor />
-              ),
-            )}
+            {messages.map((m) => (
+              <Fragment key={m.id}>
+                {m.answeredInterrupt ? (
+                  <AnsweredInterruptCard entry={m.answeredInterrupt} />
+                ) : (
+                  <ChatBubble
+                    message={m}
+                    showAuthor
+                    staleResults={Boolean(m.results) && m.id !== runMessageId}
+                    hideResults={m.id === runMessageId}
+                  />
+                )}
+                {m.id === runMessageId && runPanel}
+              </Fragment>
+            ))}
 
-            {currentTest.results && currentTest.results.rows.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div style={{ fontSize: 13, fontWeight: 600 }}>Результаты по метрикам</div>
-                <ResultsTable results={currentTest.results} />
-              </div>
-            )}
-
-            {currentTest.results && currentTest.results.checks.length > 0 && (
-              <ChecksPanel checks={currentTest.results.checks} />
-            )}
-
-            {currentTest.results && currentTest.results.segments.length > 0 && (
-              <SegmentBreakdown segments={currentTest.results.segments} />
-            )}
-
-            {currentTest.charts && currentTest.charts.length > 0 && (
-              <ChartPanel charts={currentTest.charts} />
-            )}
-
-            {/* Вывод — последним: его читают после таблицы и графиков. */}
-            {currentTest.results?.verdict && <VerdictCard verdict={currentTest.results.verdict} />}
+            {/* Прогон закончился, а его сообщения ещё нет в ленте (первый кадр
+                после `run.finished` приходит раньше перезапроса истории). */}
+            {!runMessageId && runPanel}
 
             {analyzing && progress.mode === 'answer' && (
               <div style={{ fontSize: 13, color: c.textSecondary }}>✦ Агент печатает...</div>

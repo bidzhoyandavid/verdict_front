@@ -60,9 +60,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       .catch(() => api.logout());
   }, []);
 
+  // Список тестов отдаётся без графиков (`include_charts` только в карточке
+  // одного теста), поэтому строки мержатся, а не заменяют массив целиком:
+  // иначе перезагрузка списка гасила бы панель графиков у открытого теста.
   const reloadTests = useCallback(async () => {
     const rows = await api.fetchTests();
-    setTests(rows);
+    setTests((prev) => {
+      const known = new Map(prev.map((t) => [t.id, t]));
+      return rows.map((row) => {
+        const old = known.get(row.id);
+        return old ? { ...row, charts: row.charts ?? old.charts } : row;
+      });
+    });
   }, []);
 
   useEffect(() => {
@@ -79,10 +88,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // История чата перечитывается при смене теста; дальше сообщения приходят
   // по стриму и дописываются точечно.
   useEffect(() => {
-    if (!currentTestId) {
-      setMessages([]);
-      return;
-    }
+    // Чистим синхронно: `currentTest` меняется сразу, а история приезжает
+    // запросом, и без этого под шапкой нового теста висела бы лента старого —
+    // вместе с его таблицами и графиками.
+    setMessages([]);
+    if (!currentTestId) return;
     let stale = false;
     void api.fetchMessages(currentTestId).then((rows) => {
       if (!stale) setMessages(rows);
