@@ -3,6 +3,35 @@ import { useStore } from '../storeContext';
 import { ResultsTable } from './ResultsTable';
 import type { SegmentResults, TestResults } from '../types';
 
+/** Ключ сегмента и его значение — визуально разные вещи: имя колонки одинаково
+ *  во всех карточках, различает их только значение, поэтому оно и крупнее. */
+function SegmentLabel({ label }: { label: string }) {
+  const { c } = useStore();
+  const sep = label.indexOf('=');
+  const key = sep >= 0 ? label.slice(0, sep).trim() : null;
+  const value = sep >= 0 ? label.slice(sep + 1).trim() : label;
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>
+      {key && (
+        <span style={{ fontSize: 12, color: c.textSecondary, whiteSpace: 'nowrap' }}>{key}</span>
+      )}
+      <span
+        style={{
+          fontSize: 17,
+          fontWeight: 700,
+          letterSpacing: '-0.01em',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
 /** Тот же эффект, посчитанный отдельно внутри каждого сегмента — гетерогенность
  *  видна как расхождение со строкой в общей таблице выше. */
 function SegmentSection({ segment }: { segment: SegmentResults }) {
@@ -32,13 +61,15 @@ function SegmentSection({ segment }: { segment: SegmentResults }) {
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          padding: '10px 12px',
+          padding: '12px 14px',
           cursor: 'pointer',
           background: c.surface,
         }}
       >
-        <div style={{ fontSize: 13, fontWeight: 600 }}>{segment.label}</div>
-        <div style={{ fontSize: 12, color: c.textSecondary }}>{segment.nRows} строк {open ? '▲' : '▼'}</div>
+        <SegmentLabel label={segment.label} />
+        <div style={{ fontSize: 12, color: c.textSecondary, flexShrink: 0, marginLeft: 12 }}>
+          {segment.nRows} строк {open ? '▲' : '▼'}
+        </div>
       </div>
       {open && (
         <div style={{ padding: 12 }}>

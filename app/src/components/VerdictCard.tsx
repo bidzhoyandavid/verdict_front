@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../storeContext';
-import type { MethodSummaryGroup, Verdict } from '../types';
+import type { DecisionOption, MethodSummaryGroup, Verdict } from '../types';
 // Одна карта тонов на заголовок и на карточку: разный цвет под одним
 // вердиктом читается как два разных вывода.
 import { TONE } from './Headline';
@@ -92,10 +92,7 @@ export function VerdictCard({ verdict }: { verdict: Verdict }) {
         </div>
       )}
 
-      <div style={{ fontSize: 14, lineHeight: 1.5 }}>
-        <span style={{ fontWeight: 600 }}>Рекомендация: </span>
-        {verdict.action}
-      </div>
+      <Decision verdict={verdict} accent={accent} />
 
       {verdict.evidence && <EvidencePanel evidence={verdict.evidence} />}
 
@@ -117,6 +114,71 @@ export function VerdictCard({ verdict }: { verdict: Verdict }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+
+/** Что делать — вариантами, а не одной строкой.
+ *
+ * Между «катить на всех» и «откатывать» лежат «держать тест» и «раскатить на
+ * сегмент, где эффект подтверждён». Одна рекомендация выглядела как
+ * единственный доступный ход, хотя выбор здесь всегда за человеком: пайплайн
+ * знает, что показали числа, но не знает цены каждого из решений.
+ */
+function Decision({ verdict, accent }: { verdict: Verdict; accent: string }) {
+  const { c } = useStore();
+  const options = verdict.options ?? [];
+
+  // Старый прогон приходит без каталога — показываем то, что в нём есть.
+  if (options.length === 0) {
+    return (
+      <div style={{ fontSize: 14, lineHeight: 1.5 }}>
+        <span style={{ fontWeight: 600 }}>Рекомендация: </span>
+        {verdict.action}
+      </div>
+    );
+  }
+
+  const recommended = options.filter((option) => option.recommended);
+  const alternatives = options.filter((option) => !option.recommended);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.04em', color: c.textSecondary }}>
+        ЧТО ДЕЛАТЬ
+      </div>
+      {recommended.map((option) => (
+        <Option key={option.action} option={option} accent={accent} />
+      ))}
+      {alternatives.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ fontSize: 12, color: c.textSecondary }}>Остальные варианты:</div>
+          {alternatives.map((option) => (
+            <Option key={option.action} option={option} accent={accent} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Option({ option, accent }: { option: DecisionOption; accent: string }) {
+  const { c } = useStore();
+  return (
+    <div
+      style={{
+        borderLeft: `3px solid ${option.recommended ? accent : c.border}`,
+        paddingLeft: 10,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 2,
+      }}
+    >
+      <div style={{ fontSize: 14, fontWeight: option.recommended ? 700 : 600, lineHeight: 1.4 }}>
+        {option.action}
+      </div>
+      <div style={{ fontSize: 12, color: c.textSecondary, lineHeight: 1.45 }}>{option.why}</div>
     </div>
   );
 }

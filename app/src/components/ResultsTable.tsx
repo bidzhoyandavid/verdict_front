@@ -71,12 +71,14 @@ export function ResultsTable({ results }: { results: TestResults }) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {groups.map((group) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+      {groups.map((group, index) => (
         <ComparisonTable
           key={group.comparison}
           comparison={group.comparison}
           rows={group.rows}
+          // Первая группа уже отделена от предыдущего блока, остальным нужна черта.
+          separated={groups.length > 1 && index > 0}
           // Одна пара — подпись не нужна: группы уже названы в шапке колонок.
           captioned={groups.length > 1}
           openHow={openHow}
@@ -88,15 +90,34 @@ export function ResultsTable({ results }: { results: TestResults }) {
   );
 }
 
+/** Заголовок сравнения. Контроль во всех парах один и тот же — различает их
+ *  только имя варианта, поэтому оно и несёт вес, а «vs control» уходит в фон. */
+function ComparisonCaption({ comparison }: { comparison: string }) {
+  const { c } = useStore();
+  const match = /^(.*?)\s+vs\s+(.*)$/.exec(comparison);
+  const treatment = match ? match[1] : comparison;
+  const control = match ? match[2] : null;
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}>
+      <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-0.01em' }}>{treatment}</span>
+      {control && (
+        <span style={{ fontSize: 12, color: c.textSecondary }}>vs {control}</span>
+      )}
+    </div>
+  );
+}
+
 interface TableProps {
   comparison: string;
   rows: ResultRow[];
   captioned: boolean;
+  separated: boolean;
   openHow: string | null;
   setOpenHow: (key: string | null) => void;
 }
 
-function ComparisonTable({ comparison, rows, captioned, openHow, setOpenHow }: TableProps) {
+function ComparisonTable({ comparison, rows, captioned, separated, openHow, setOpenHow }: TableProps) {
   const { c } = useStore();
 
   // Колонка «Δ абс.» — не всегда разница средних: на ранговом estimand это
@@ -136,10 +157,18 @@ function ComparisonTable({ comparison, rows, captioned, openHow, setOpenHow }: T
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+        borderTop: separated ? `1px solid ${c.border}` : undefined,
+        paddingTop: separated ? 24 : undefined,
+      }}
+    >
       {captioned && (
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-          <div style={{ fontSize: 13, fontWeight: 600 }}>{comparison}</div>
+          <ComparisonCaption comparison={comparison} />
           {!omnibus && (
             <div style={{ fontSize: 12, color: c.textSecondary, fontFamily: MONO }}>
               n: {formatCount(first.nControl)} / {formatCount(first.nTreatment)}

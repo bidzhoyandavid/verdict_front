@@ -121,10 +121,20 @@ export interface GuardrailViolation {
   pValue: number | null;
 }
 
+/** Один вариант решения: что сделать, на чём это основано и рекомендован ли. */
+export interface DecisionOption {
+  action: string;
+  why: string;
+  recommended: boolean;
+}
+
 export interface Verdict {
   code: string;
   label: string;
   action: string;
+  /** Варианты решения целиком: рекомендованный и те, что остались на столе.
+   *  Старый прогон приходит без них — тогда читается один `action`. */
+  options: DecisionOption[];
   metric: string | null;
   /** Пара веток, про которую вердикт: «label_price vs control». */
   comparison: string | null;

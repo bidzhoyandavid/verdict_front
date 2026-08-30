@@ -220,6 +220,7 @@ interface VerdictDto {
   code: string;
   label: string;
   action: string;
+  options?: { action: string; why: string; recommended: boolean }[];
   metric: string | null;
   comparison?: string | null;
   comparison_mode?: string | null;
@@ -392,6 +393,7 @@ function toResults(dto: TestResultsDto | null): TestResults | null {
           code: dto.verdict.code,
           label: dto.verdict.label,
           action: dto.verdict.action,
+          options: dto.verdict.options ?? [],
           metric: dto.verdict.metric,
           comparison: dto.verdict.comparison ?? null,
           comparisonMode: dto.verdict.comparison_mode ?? null,
