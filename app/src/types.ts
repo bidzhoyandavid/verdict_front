@@ -14,7 +14,15 @@ export type TestStatus =
   | 'done'
   | 'failed';
 
-export type SettingsTab = 'profile' | 'company' | 'team' | 'theme' | 'roles';
+export type SettingsTab = 'profile' | 'company' | 'team' | 'metrics' | 'theme' | 'roles';
+
+/** Метрика в словаре компании: общее имя для тестов всех команд. */
+export interface CompanyMetric {
+  id: string;
+  name: string;
+  aliases: string[];
+  description: string;
+}
 
 export type Role = 'Admin' | 'Analyst' | 'Product' | 'Marketer' | 'Other';
 
@@ -440,6 +448,11 @@ export interface ABTest {
   charts?: Chart[] | null;
   pendingInterrupt?: PendingInterrupt | null;
   error?: string | null;
+  /** Команда-владелец теста. Пул тестов общий на компанию (итерация 005). */
+  teamId?: string | null;
+  teamName?: string;
+  /** Тест чужой команды: виден целиком, но писать в него нельзя. */
+  readOnly?: boolean;
 }
 
 export interface ChatMessage {
@@ -472,6 +485,11 @@ export interface CompanyDoc {
   updatedAt: string;
 }
 
+export interface DerivedColumnDraft {
+  name: string;
+  expression: string;
+}
+
 export interface NewTestDraft {
   name: string;
   hypothesis: string;
@@ -482,6 +500,12 @@ export interface NewTestDraft {
   startDate: string;
   endDate: string;
   dataFile: File | null;
+  /** Колонки, которых нет в файле: считаются формулой перед анализом. */
+  derivedColumns: DerivedColumnDraft[];
+  /** Юнит, по которому агрегируются формулы. Уходит и в превью, и в тест. */
+  derivedUnit: string;
+  /** Датасет, уже залитый ради превью формул: второй раз грузить его незачем. */
+  datasetId?: string | null;
 }
 
 export interface OnboardDraft {
@@ -492,11 +516,16 @@ export interface OnboardDraft {
   mdFile: File | null;
 }
 
+/** Право, а не должность: им гейтятся приглашения, команды и словарь метрик. */
+export type Permission = 'owner' | 'lead' | 'member';
+
 export interface User {
   id: string;
   name: string;
   email: string;
   role: Role;
+  permission: Permission;
+  teamId: string | null;
   initials: string;
   companyId: string;
   onboarded: boolean;

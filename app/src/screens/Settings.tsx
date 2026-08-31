@@ -1,11 +1,15 @@
+import { useEffect, useState } from 'react';
+
 import { useStore } from '../storeContext';
 import { Field } from '../components/ui';
-import type { SettingsTab } from '../types';
+import { addCompanyMetric, deleteCompanyMetric, fetchCompanyMetrics } from '../api/client';
+import type { CompanyMetric, SettingsTab } from '../types';
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'profile', label: 'Профиль' },
   { id: 'company', label: 'Компания' },
   { id: 'team', label: 'Команда' },
+  { id: 'metrics', label: 'Метрики' },
   { id: 'theme', label: 'Тема' },
   { id: 'roles', label: 'Роли и права' },
 ];
@@ -63,6 +67,7 @@ export function Settings() {
           {settingsTab === 'profile' && <ProfileTab />}
           {settingsTab === 'company' && <CompanyTab />}
           {settingsTab === 'team' && <TeamTab />}
+          {settingsTab === 'metrics' && <MetricsTab />}
           {settingsTab === 'theme' && <ThemeTab />}
           {settingsTab === 'roles' && <RolesTab />}
         </div>
@@ -88,6 +93,107 @@ function ProfileTab() {
         Роль
         <div style={{ fontSize: 14, color: c.textSecondary }}>{user?.role}</div>
       </div>
+    </div>
+  );
+}
+
+function MetricsTab() {
+  const { c, s, user } = useStore();
+  const [metrics, setMetrics] = useState<CompanyMetric[]>([]);
+  const [name, setName] = useState('');
+  const [aliases, setAliases] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  // Читают словарь все, правят лид и владелец — бэкенд отвечает на попытку 403,
+  // и показывать форму, которая заведомо не сработает, незачем.
+  const canEdit = user?.permission === 'owner' || user?.permission === 'lead';
+
+  useEffect(() => {
+    void fetchCompanyMetrics().then(setMetrics).catch(() => setMetrics([]));
+  }, []);
+
+  const add = async () => {
+    setError(null);
+    try {
+      const created = await addCompanyMetric(
+        name,
+        aliases.split(',').map((a) => a.trim()).filter(Boolean),
+        '',
+      );
+      setMetrics((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+      setName('');
+      setAliases('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Не удалось добавить метрику');
+    }
+  };
+
+  const drop = async (metricId: string) => {
+    await deleteCompanyMetric(metricId);
+    setMetrics((prev) => prev.filter((m) => m.id !== metricId));
+  };
+
+  return (
+    <div style={{ maxWidth: 560, display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ fontSize: 13, color: c.textSecondary }}>
+        Общие имена метрик для всей компании. Агент подставляет их в постановку теста, поэтому
+        одинаковые метрики разных команд сходятся, а не расходятся по названиям.
+      </div>
+
+      {metrics.map((metric) => (
+        <div
+          key={metric.id}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            borderTop: `1px solid ${c.border}`,
+            paddingTop: 10,
+          }}
+        >
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 500 }}>{metric.name}</div>
+            {metric.aliases.length > 0 && (
+              <div style={{ fontSize: 12, color: c.textSecondary }}>
+                также: {metric.aliases.join(', ')}
+              </div>
+            )}
+          </div>
+          {canEdit && (
+            <button onClick={() => void drop(metric.id)} style={s.secondaryButtonSmall}>
+              Убрать
+            </button>
+          )}
+        </div>
+      ))}
+
+      {metrics.length === 0 && (
+        <div style={{ fontSize: 13, color: c.textSecondary }}>Словарь пока пуст.</div>
+      )}
+
+      {canEdit && (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+          <Field label="Имя метрики" style={{ flex: 1 }}>
+            <input
+              placeholder="ARPU"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              style={s.input}
+            />
+          </Field>
+          <Field label="Синонимы через запятую" style={{ flex: 1 }}>
+            <input
+              placeholder="arpu_total, выручка на пользователя"
+              value={aliases}
+              onChange={(e) => setAliases(e.target.value)}
+              style={s.input}
+            />
+          </Field>
+          <button onClick={() => void add()} disabled={!name.trim()} style={s.secondaryButtonSmall}>
+            Добавить
+          </button>
+        </div>
+      )}
+      {error && <div style={{ fontSize: 13, color: c.error }}>{error}</div>}
     </div>
   );
 }

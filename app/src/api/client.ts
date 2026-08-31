@@ -6,6 +6,8 @@ import type {
   CheckResult,
   ChatMessage,
   CompanyDoc,
+  CompanyMetric,
+  Permission,
   MethodSummaryGroup,
   NewTestDraft,
   ResultRow,
@@ -84,6 +86,8 @@ interface UserDto {
   name: string;
   email: string;
   role: Role;
+  permission?: Permission;
+  team_id?: string | null;
   initials: string;
   company_id: string;
   onboarded: boolean;
@@ -100,6 +104,8 @@ function toUser(dto: UserDto): User {
     name: dto.name,
     email: dto.email,
     role: dto.role,
+    permission: dto.permission ?? 'member',
+    teamId: dto.team_id ?? null,
     initials: dto.initials,
     companyId: dto.company_id,
     onboarded: dto.onboarded,
@@ -352,6 +358,9 @@ interface TestDto {
   charts: Chart[] | null;
   pending_interrupt: ABTest['pendingInterrupt'];
   error: string | null;
+  team_id?: string | null;
+  team_name?: string;
+  read_only?: boolean;
 }
 
 function toRow(dto: ResultRowDto): ResultRow {
@@ -444,6 +453,9 @@ export function toTest(dto: TestDto): ABTest {
     charts: dto.charts,
     pendingInterrupt: dto.pending_interrupt,
     error: dto.error,
+    teamId: dto.team_id ?? null,
+    teamName: dto.team_name ?? '',
+    readOnly: dto.read_only ?? false,
   };
 }
 
@@ -469,7 +481,9 @@ export async function uploadDataset(file: File): Promise<DatasetInfo> {
 
 export async function createTest(draft: NewTestDraft): Promise<ABTest> {
   // Датасет заливается первым: без него бэкенд создаст тест, но не запустит анализ.
-  const dataset = draft.dataFile ? await uploadDataset(draft.dataFile) : null;
+  // Если его уже залили ради превью формул, второй раз не грузим.
+  const datasetId =
+    draft.datasetId ?? (draft.dataFile ? (await uploadDataset(draft.dataFile)).dataset_id : null);
   const dto = await postJson<TestDto>('/tests', {
     name: draft.name,
     hypothesis: draft.hypothesis,
@@ -479,7 +493,9 @@ export async function createTest(draft: NewTestDraft): Promise<ABTest> {
     segment: draft.segment,
     start_date: draft.startDate,
     end_date: draft.endDate,
-    dataset_id: dataset?.dataset_id ?? null,
+    dataset_id: datasetId,
+    derived_columns: draft.derivedColumns.filter((c) => c.name.trim() && c.expression.trim()),
+    derived_unit: draft.derivedUnit,
   });
   return toTest(dto);
 }
@@ -540,6 +556,109 @@ export function streamUrl(testId: string): string {
   return `${BASE_URL}/tests/${testId}/stream?token=${encodeURIComponent(getToken() ?? '')}`;
 }
 
+export interface DerivedColumnReport {
+  name: string;
+  status: 'ok' | 'failed';
+  detail: string;
+  aggregatedBy?: string;
+  nNull?: number;
+  /** Что человек написал, если агент это переписал. */
+  written?: string;
+  /** Формула, которой считали. */
+  expression?: string;
+  note?: string;
+}
+
+export interface DerivedPreview {
+  /** Юнит, по которому считали: мог быть угадан, а не введён. */
+  unit: string;
+  columns: DerivedColumnReport[];
+  rows: Record<string, number | string | null>[];
+}
+
+interface DerivedReportDto {
+  name: string;
+  status: 'ok' | 'failed';
+  detail?: string;
+  aggregated_by?: string;
+  n_null?: number;
+  written?: string;
+  expression?: string;
+  note?: string;
+}
+
+/** Посчитать формулы на залитых данных и показать несколько строк. */
+export async function previewDerived(
+  datasetId: string,
+  columns: { name: string; expression: string }[],
+  unit: string,
+): Promise<DerivedPreview> {
+  const dto = await postJson<{
+    unit?: string;
+    columns: DerivedReportDto[];
+    rows: Record<string, number | string | null>[];
+  }>(`/files/datasets/${datasetId}/derived-preview`, { columns, unit });
+  return {
+    unit: dto.unit ?? '',
+    columns: dto.columns.map((row) => ({
+      name: row.name,
+      status: row.status,
+      detail: row.detail ?? '',
+      aggregatedBy: row.aggregated_by,
+      nNull: row.n_null,
+      written: row.written,
+      expression: row.expression,
+      note: row.note,
+    })),
+    rows: dto.rows,
+  };
+}
+
+export interface TestOverlap {
+  testId: string;
+  name: string;
+  team: string;
+  audience: string;
+  start: string | null;
+  end: string | null;
+  days: number;
+  sameAudience: boolean;
+}
+
+interface TestOverlapDto {
+  test_id: string;
+  name: string;
+  team: string;
+  audience: string;
+  start: string | null;
+  end: string | null;
+  days: number;
+  same_audience: boolean;
+}
+
+/** Какие тесты уже идут в это окно — спрашивается, пока даты ещё правят. */
+export async function fetchOverlaps(
+  startDate: string,
+  endDate: string,
+  audience: string,
+): Promise<TestOverlap[]> {
+  const rows = await postJson<TestOverlapDto[]>('/tests/overlaps', {
+    start_date: startDate,
+    end_date: endDate,
+    audience,
+  });
+  return rows.map((row) => ({
+    testId: row.test_id,
+    name: row.name,
+    team: row.team,
+    audience: row.audience,
+    start: row.start,
+    end: row.end,
+    days: row.days,
+    sameAudience: row.same_audience,
+  }));
+}
+
 /* ------------------------------------------------------ team / onboarding */
 
 export async function fetchTeam(): Promise<TeamMember[]> {
@@ -548,6 +667,22 @@ export async function fetchTeam(): Promise<TeamMember[]> {
 
 export async function inviteMember(email: string, role: Role): Promise<TeamMember> {
   return postJson<TeamMember>('/team', { email, role });
+}
+
+export async function fetchCompanyMetrics(): Promise<CompanyMetric[]> {
+  return request<CompanyMetric[]>('/metrics');
+}
+
+export async function addCompanyMetric(
+  name: string,
+  aliases: string[],
+  description: string,
+): Promise<CompanyMetric> {
+  return postJson<CompanyMetric>('/metrics', { name, aliases, description });
+}
+
+export async function deleteCompanyMetric(metricId: string): Promise<void> {
+  await request<void>(`/metrics/${metricId}`, { method: 'DELETE' });
 }
 
 export async function fetchCompanyDocs(): Promise<CompanyDoc[]> {

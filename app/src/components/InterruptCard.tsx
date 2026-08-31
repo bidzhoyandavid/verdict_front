@@ -472,7 +472,7 @@ function PolicyMetricsTable({ metrics }: { metrics: PolicyMetric[] }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {metrics.map((metric) => (
         <div key={metric.id} style={{ fontSize: 12, color: c.textSecondary }}>
-          <span style={{ fontFamily: MONO, fontSize: 13, color: c.text }}>{metric.column}</span>
+          <span style={{ fontFamily: MONO, fontSize: 13, color: c.textPrimary }}>{metric.column}</span>
           {' · '}
           скос {metric.diagnostics.skewness.toFixed(1)}, выбросов{' '}
           {(metric.diagnostics.outlier_share * 100).toFixed(1)}%

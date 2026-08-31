@@ -21,9 +21,12 @@ export function MainChat() {
 
   const analyzing = currentTest?.status === 'analyzing';
   const paused = currentTest?.status === 'awaiting_input';
+  // Тест чужой команды: читается целиком, но реплика в него — правка чужого
+  // прогона задним числом, и бэкенд её отбивает (403).
+  const readOnly = currentTest?.readOnly === true;
   // Пока агент занят или ждёт ответа на свой вопрос, писать в чат нельзя —
   // бэкенд в этот момент всё равно ответит 409.
-  const inputDisabled = !currentTest || analyzing || paused;
+  const inputDisabled = !currentTest || analyzing || paused || readOnly;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -177,8 +180,15 @@ export function MainChat() {
               <div style={{ fontSize: 13, color: c.textSecondary }}>✦ Агент печатает...</div>
             )}
 
-            {paused && currentTest.pendingInterrupt && (
+            {paused && currentTest.pendingInterrupt && !readOnly && (
               <InterruptCard interrupt={currentTest.pendingInterrupt} />
+            )}
+
+            {paused && currentTest.pendingInterrupt && readOnly && (
+              // Вопрос показываем, кнопки — нет: отвечает та команда, чей прогон.
+              <div style={{ fontSize: 13, color: c.textSecondary }}>
+                Агент ждёт ответа от команды-владельца теста.
+              </div>
             )}
 
             {currentTest.status === 'failed' && currentTest.error && (
@@ -200,7 +210,22 @@ export function MainChat() {
         )}
       </div>
 
-      {currentTest && (
+      {currentTest && readOnly && (
+        <div
+          style={{
+            padding: '16px 24px 20px',
+            borderTop: `1px solid ${c.border}`,
+            color: c.textSecondary,
+            fontSize: 13,
+          }}
+        >
+          {currentTest.teamName
+            ? `Тест команды «${currentTest.teamName}» — только просмотр.`
+            : 'Тест другой команды — только просмотр.'}
+        </div>
+      )}
+
+      {currentTest && !readOnly && (
         <div
           style={{
             padding: '12px 24px 20px',
