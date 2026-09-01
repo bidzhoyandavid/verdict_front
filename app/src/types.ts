@@ -453,6 +453,21 @@ export interface ABTest {
   teamName?: string;
   /** Тест чужой команды: виден целиком, но писать в него нельзя. */
   readOnly?: boolean;
+  /** Как посчитаны производные колонки. Приходит только в карточке теста. */
+  derived?: DerivedColumn[];
+}
+
+/** Производная колонка, как её посчитал прогон. */
+export interface DerivedColumn {
+  name: string;
+  expression: string;
+  /** Юнит агрегации; пусто — считалось построчно. */
+  aggregatedBy: string;
+  /** Заполнены только у отношения: по ним считается сумма/сумма. */
+  numerator: string;
+  denominator: string;
+  status: string;
+  detail: string;
 }
 
 export interface ChatMessage {

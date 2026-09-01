@@ -375,6 +375,15 @@ interface TestDto {
   team_id?: string | null;
   team_name?: string;
   read_only?: boolean;
+  derived?: {
+    name: string;
+    expression: string;
+    aggregated_by: string;
+    numerator: string;
+    denominator: string;
+    status: string;
+    detail: string;
+  }[];
 }
 
 function toRow(dto: ResultRowDto): ResultRow {
@@ -470,6 +479,15 @@ export function toTest(dto: TestDto): ABTest {
     teamId: dto.team_id ?? null,
     teamName: dto.team_name ?? '',
     readOnly: dto.read_only ?? false,
+    derived: (dto.derived ?? []).map((row) => ({
+      name: row.name,
+      expression: row.expression,
+      aggregatedBy: row.aggregated_by,
+      numerator: row.numerator,
+      denominator: row.denominator,
+      status: row.status,
+      detail: row.detail,
+    })),
   };
 }
 

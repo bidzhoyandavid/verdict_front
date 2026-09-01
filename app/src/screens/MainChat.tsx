@@ -5,6 +5,7 @@ import { ChatBubble } from '../components/ChatBubble';
 import { Headline } from '../components/Headline';
 import { ChartPanel } from '../components/ChartPanel';
 import { ChecksPanel } from '../components/ChecksPanel';
+import { DerivedPanel } from '../components/DerivedPanel';
 import { InterruptCard } from '../components/InterruptCard';
 import { ResultsTable } from '../components/ResultsTable';
 import { SegmentBreakdown } from '../components/SegmentBreakdown';
@@ -54,6 +55,12 @@ export function MainChat() {
       {/* Заголовок первым: аналитик читает вывод, а потом идёт за числами в
           таблицу — а не собирает вывод сам, просмотрев все строки. */}
       {currentTest.results && <Headline results={currentTest.results} />}
+
+      {/* Перед таблицей: прежде чем читать числа, надо знать, что именно
+          посчитано. */}
+      {currentTest.derived && currentTest.derived.length > 0 && (
+        <DerivedPanel columns={currentTest.derived} />
+      )}
 
       {currentTest.results && currentTest.results.rows.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

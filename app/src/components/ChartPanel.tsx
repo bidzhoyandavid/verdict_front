@@ -49,13 +49,30 @@ function ChartFigure({ chart }: { chart: Chart }) {
 
     void loadPlotly().then((Plotly) => {
       if (cancelled) return;
+      // Сетка и оси приходят из abex.viz со светлыми умолчаниями: подложка
+      // прозрачная, а линии остаются почти белыми, и в тёмной теме график
+      // светится сеткой сильнее, чем данными.
+      const axis = {
+        gridcolor: c.border,
+        zerolinecolor: c.border,
+        linecolor: c.border,
+        tickfont: { color: c.textSecondary, size: 11 },
+        // `title` не трогаем: в нём лежит текст подписи оси, и перезапись
+        // объекта стёрла бы её. Цвет заголовка идёт из общего `font`.
+      };
+      const source = chart.layout as Record<string, unknown>;
       const layout = {
-        ...(chart.layout as Record<string, unknown>),
+        ...source,
         height,
         autosize: true,
         paper_bgcolor: 'rgba(0,0,0,0)',
         plot_bgcolor: 'rgba(0,0,0,0)',
         font: { color: c.textPrimary, size: 12 },
+        // Собственные подписи осей из спеки сохраняются: перезаписываются
+        // только цвета.
+        xaxis: { ...(source.xaxis as object), ...axis },
+        yaxis: { ...(source.yaxis as object), ...axis },
+        legend: { font: { color: c.textSecondary, size: 11 } },
       };
       plotted = true;
       return Plotly.newPlot(node, chart.data, layout, {
@@ -71,7 +88,7 @@ function ChartFigure({ chart }: { chart: Chart }) {
       }
     };
     // Тема меняет цвет подписей — перерисовываем.
-  }, [chart, theme, c.textPrimary, height]);
+  }, [chart, theme, c.textPrimary, c.textSecondary, c.border, height]);
 
   return <div ref={container} style={{ width: '100%', height }} />;
 }
