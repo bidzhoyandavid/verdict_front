@@ -198,15 +198,55 @@ function MetricsTab() {
   );
 }
 
+const CONTEXT_LABEL: Record<string, string> = {
+  ready: 'Заполнен',
+  draft: 'Начат, но не подтверждён',
+  absent: 'Не заполнен',
+};
+
 function CompanyTab() {
-  const { c, s, companyDocs } = useStore();
+  const { c, s, companyDocs, user, goScreen } = useStore();
   const latest = companyDocs[0];
+  const isOwner = user?.permission === 'owner';
+  const status = user?.contextStatus ?? 'absent';
 
   return (
     <div style={{ maxWidth: 480, display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={s.fieldLabel}>
         Название
-        <div style={{ fontSize: 14, color: c.textSecondary }}>Acme Commerce</div>
+        <div style={{ fontSize: 14, color: c.textSecondary }}>{user?.companyName || '—'}</div>
+      </div>
+
+      <div style={s.fieldLabel}>
+        Контекст для агента
+        <div style={{ fontSize: 14, color: c.textSecondary, marginTop: 4 }}>
+          {CONTEXT_LABEL[status]}
+          {status !== 'ready' && ' — агент отвечает без специфики вашего продукта'}
+        </div>
+        {/* Заполняет только владелец: документ действует на выводы во всех
+            командах компании. */}
+        {isOwner && status !== 'ready' && (
+          <button
+            onClick={() => goScreen('onboard-form')}
+            style={{
+              marginTop: 8,
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              font: 'inherit',
+              fontWeight: 600,
+              color: c.accent,
+              cursor: 'pointer',
+            }}
+          >
+            {status === 'draft' ? 'Продолжить заполнение' : 'Заполнить'}
+          </button>
+        )}
+        {!isOwner && status !== 'ready' && (
+          <div style={{ fontSize: 13, color: c.textSecondary, marginTop: 6 }}>
+            Заполнить может владелец компании.
+          </div>
+        )}
       </div>
       <div style={s.fieldLabel}>
         Описание компании/продукта

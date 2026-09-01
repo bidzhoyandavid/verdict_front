@@ -8,7 +8,7 @@ const ROLES: Role[] = ['Admin', 'Analyst', 'Product', 'Marketer', 'Other'];
 const GOALS = ['Анализ A/B тестов', 'Поиск инсайтов', 'Отчёты для команды'];
 
 export function OnboardForm() {
-  const { c, s, goScreen, user, completeOnboarding } = useStore();
+  const { c, s, goScreen, user, completeOnboarding, deferContext } = useStore();
   const [submitting, setSubmitting] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState<OnboardDraft>({
@@ -90,13 +90,13 @@ export function OnboardForm() {
           </select>
         </Field>
 
+        {/* Название введено при регистрации компании на сайте. Спрашивать
+            второй раз незачем, а редактирование здесь означало бы тихое
+            переименование компании — это отдельное действие в биллинге. */}
         <Field label="Компания / проект">
-          <input
-            placeholder="Acme Commerce"
-            value={draft.company}
-            onChange={(e) => setDraft({ ...draft, company: e.target.value })}
-            style={s.input}
-          />
+          <div style={{ ...s.input, color: c.textSecondary }}>
+            {user?.companyName || draft.company || '—'}
+          </div>
         </Field>
 
         <div style={s.fieldLabel}>
@@ -170,18 +170,45 @@ export function OnboardForm() {
           </div>
         </div>
 
-        <button
-          onClick={async () => {
-            setSubmitting(true);
-            await completeOnboarding(draft.mdFile);
-            setSubmitting(false);
-            goScreen('onboard-chat');
-          }}
-          disabled={submitting || !draft.mdFile}
-          style={{ ...s.primaryButton, opacity: submitting || !draft.mdFile ? 0.5 : 1 }}
-        >
-          {submitting ? 'Загружаем...' : 'Продолжить'}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <button
+            onClick={async () => {
+              setSubmitting(true);
+              await completeOnboarding(draft.mdFile);
+              setSubmitting(false);
+              goScreen('onboard-chat');
+            }}
+            disabled={submitting || !draft.mdFile}
+            style={{ ...s.primaryButton, opacity: submitting || !draft.mdFile ? 0.5 : 1 }}
+          >
+            {submitting ? 'Загружаем...' : 'Продолжить'}
+          </button>
+
+          {/* Равноправная кнопка, а не ссылка в углу: пропуск здесь —
+              законный выбор, и прятать его значит подталкивать к бегству
+              со страницы вместо осознанного решения. */}
+          <button
+            onClick={() => void deferContext()}
+            disabled={submitting}
+            style={{
+              background: 'none',
+              border: `1px solid ${c.border}`,
+              borderRadius: 10,
+              padding: '10px 18px',
+              font: 'inherit',
+              color: c.textPrimary,
+              cursor: submitting ? 'default' : 'pointer',
+            }}
+          >
+            Заполнить позже
+          </button>
+        </div>
+
+        <div style={{ fontSize: 13, color: c.textSecondary, marginTop: 12, lineHeight: 1.5 }}>
+          Контекст можно дозаполнить в любой момент — «Настройки → Компания».
+          Тесты работают и без него: без контекста агент отвечает без
+          специфики вашего продукта.
+        </div>
       </div>
     </div>
   );

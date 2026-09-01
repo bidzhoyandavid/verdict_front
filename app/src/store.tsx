@@ -23,6 +23,18 @@ function errorText(error: unknown): string {
   return 'Не удалось связаться с сервером';
 }
 
+/** Куда попадает человек после входа.
+ *
+ *  Контекст компании — не пропуск в продукт, а способ улучшить формулировки
+ *  агента, и держать за ним вход неправильно. Поэтому экран показывается
+ *  ровно один раз и ровно одному человеку: владельцу, который ещё не начинал
+ *  и не отказывался. Всем остальным — сразу работа. */
+function landingScreen(me: User): Screen {
+  if (me.permission !== 'owner') return 'main';
+  if (me.contextStatus === 'ready' || me.contextDeferred) return 'main';
+  return 'onboard-form';
+}
+
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<ThemeName>('light');
   const [screen, setScreen] = useState<Screen>('auth');
@@ -49,15 +61,36 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const currentTest = tests.find((t) => t.id === currentTestId);
 
   // Восстановление сессии: токен переживает перезагрузку страницы.
+  //
+  // Сначала — код перехода с сайта (`?handoff=...`). Сайт живёт на другом
+  // origin, и его `localStorage` нам недоступен; код обменивается на токен и
+  // перекрывает то, что лежало здесь раньше, — иначе человек, вошедший на
+  // сайте под одной компанией, попадал бы в приложение под другой.
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const handoff = params.get('handoff');
+
+    const restore = (me: User) => {
+      setUser(me);
+      setScreen(landingScreen(me));
+    };
+
+    if (handoff) {
+      // Код одноразовый: убираем его из адреса сразу, чтобы перезагрузка
+      // страницы не пыталась обменять его повторно и не оставляла в истории.
+      window.history.replaceState({}, '', window.location.pathname);
+      void api
+        .exchangeHandoff(handoff)
+        .then(restore)
+        .catch(() => {
+          // Код протух или уже использован — остаётся прежняя сессия, если она есть.
+          if (api.getToken()) void api.fetchCurrentUser().then(restore).catch(() => api.logout());
+        });
+      return;
+    }
+
     if (!api.getToken()) return;
-    void api
-      .fetchCurrentUser()
-      .then((me) => {
-        setUser(me);
-        setScreen(me.onboarded ? 'main' : 'onboard-form');
-      })
-      .catch(() => api.logout());
+    void api.fetchCurrentUser().then(restore).catch(() => api.logout());
   }, []);
 
   // Список тестов отдаётся без графиков (`include_charts` только в карточке
@@ -159,6 +192,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     onTestChanged: refreshCurrentTest,
   });
 
+  /** «Заполню позже». Отметка на сервере, чтобы экран не встречал владельца
+   *  при каждом входе; работа при этом не блокируется ничем. */
+  const deferContext = useCallback(async () => {
+    try {
+      await api.deferCompanyContext();
+    } catch {
+      // Отметка не сохранилась — не повод держать человека на экране.
+    }
+    setUser((prev) => (prev ? { ...prev, contextDeferred: true } : prev));
+    setScreen('main');
+  }, []);
+
   const goScreen = useCallback((next: Screen) => {
     setScreen(next);
     setProfileMenuOpen(false);
@@ -174,7 +219,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             ? await api.signup(email, password, company)
             : await api.login(email, password);
         setUser(me);
-        setScreen(authMode === 'signup' || !me.onboarded ? 'onboard-form' : 'main');
+        setScreen(landingScreen(me));
       } catch (error) {
         setAuthError(errorText(error));
       } finally {
@@ -265,7 +310,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const completeOnboarding = useCallback(
     async (mdFile: File | null) => {
       if (mdFile) await api.uploadCompanyDoc(mdFile);
-      if (user) setUser({ ...user, onboarded: true });
+      if (user) {
+        setUser({ ...user, onboarded: true, contextStatus: 'ready', contextDeferred: false });
+      }
     },
     [user],
   );
@@ -278,6 +325,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     toggleTheme: () => setTheme((t) => (t === 'light' ? 'dark' : 'light')),
     screen,
     goScreen,
+    deferContext,
     authMode,
     setAuthMode,
     submitAuth,

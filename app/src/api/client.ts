@@ -11,6 +11,7 @@ import type {
   MethodSummaryGroup,
   NewTestDraft,
   ResultRow,
+  ContextStatus,
   Role,
   TeamMember,
   TestResults,
@@ -90,7 +91,10 @@ interface UserDto {
   team_id?: string | null;
   initials: string;
   company_id: string;
+  company_name?: string;
   onboarded: boolean;
+  context_status?: ContextStatus;
+  context_deferred?: boolean;
 }
 
 interface TokenDto {
@@ -108,7 +112,10 @@ function toUser(dto: UserDto): User {
     teamId: dto.team_id ?? null,
     initials: dto.initials,
     companyId: dto.company_id,
+    companyName: dto.company_name ?? '',
     onboarded: dto.onboarded,
+    contextStatus: dto.context_status ?? (dto.onboarded ? 'ready' : 'absent'),
+    contextDeferred: dto.context_deferred ?? false,
   };
 }
 
@@ -131,6 +138,13 @@ export async function login(email: string, password: string): Promise<User> {
 
 export function logout(): void {
   setToken(null);
+}
+
+/** Обменять одноразовый код с сайта на токен этого origin. */
+export async function exchangeHandoff(code: string): Promise<User> {
+  const dto = await postJson<TokenDto>(`/auth/handoff/${encodeURIComponent(code)}/exchange`, {});
+  setToken(dto.access_token);
+  return toUser(dto.user);
 }
 
 export async function fetchCurrentUser(): Promise<User> {
@@ -741,6 +755,12 @@ export async function answerOnboardingQuestions(
   answers: Record<string, string>,
 ): Promise<OnboardingReview> {
   return postJson<OnboardingReview>('/onboarding/answers', { content, answers });
+}
+
+/** «Заполню позже»: контекст ничего не блокирует, но отметка нужна —
+ *  иначе экран встречал бы владельца при каждом входе. */
+export async function deferCompanyContext(): Promise<OnboardingReview> {
+  return postJson<OnboardingReview>('/onboarding/defer', {});
 }
 
 export async function confirmCompanyContext(content: string): Promise<void> {

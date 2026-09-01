@@ -23,6 +23,8 @@ export interface Store {
 
   screen: Screen;
   goScreen: (screen: Screen) => void;
+  /** Отложить заполнение контекста компании. */
+  deferContext: () => Promise<void>;
   authMode: AuthMode;
   setAuthMode: (m: AuthMode) => void;
   submitAuth: (email: string, password: string, company: string) => Promise<void>;

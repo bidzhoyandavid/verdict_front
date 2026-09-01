@@ -528,8 +528,15 @@ export interface User {
   teamId: string | null;
   initials: string;
   companyId: string;
+  companyName: string;
   onboarded: boolean;
+  /** absent | draft | ready — заполнение контекста прерываемо. */
+  contextStatus: ContextStatus;
+  /** Владелец нажал «заполню позже». */
+  contextDeferred: boolean;
 }
+
+export type ContextStatus = 'absent' | 'draft' | 'ready';
 
 /** Шаг пайплайна, как его присылает бэкенд.
  *

@@ -9,6 +9,7 @@ import { AllTests } from './screens/AllTests';
 import { Settings } from './screens/Settings';
 import { NewTestModal } from './modals/NewTestModal';
 import { InviteModal } from './modals/InviteModal';
+import { ContextReminder } from './components/ContextReminder';
 
 function Shell() {
   const { c, screen, newTestModalOpen, inviteModalOpen } = useStore();
@@ -32,6 +33,7 @@ function Shell() {
         <div style={{ height: '100%', display: 'flex' }}>
           <Sidebar />
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+            <ContextReminder />
             {screen === 'main' && <MainChat />}
             {screen === 'all-tests' && <AllTests />}
             {screen === 'settings' && <Settings />}
