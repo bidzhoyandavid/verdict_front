@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '../storeContext';
+import { useDict } from '../lib/lang';
+import { appDict } from '../lib/appDict';
 import { ResultsTable } from './ResultsTable';
 import type { SegmentResults, TestResults } from '../types';
 
@@ -36,6 +38,7 @@ function SegmentLabel({ label }: { label: string }) {
  *  видна как расхождение со строкой в общей таблице выше. */
 function SegmentSection({ segment }: { segment: SegmentResults }) {
   const { c } = useStore();
+  const t = useDict(appDict);
   const [open, setOpen] = useState(false);
 
   const asResults: TestResults = {
@@ -68,7 +71,7 @@ function SegmentSection({ segment }: { segment: SegmentResults }) {
       >
         <SegmentLabel label={segment.label} />
         <div style={{ fontSize: 12, color: c.textSecondary, flexShrink: 0, marginLeft: 12 }}>
-          {segment.nRows} строк {open ? '▲' : '▼'}
+          {t.segments.rows(segment.nRows)} {open ? '▲' : '▼'}
         </div>
       </div>
       {open && (
@@ -76,7 +79,7 @@ function SegmentSection({ segment }: { segment: SegmentResults }) {
           {segment.rows.length > 0 ? (
             <ResultsTable results={asResults} />
           ) : (
-            <div style={{ fontSize: 12, color: c.textSecondary }}>Не удалось посчитать в этом сегменте.</div>
+            <div style={{ fontSize: 12, color: c.textSecondary }}>{t.segments.cannotCompute}</div>
           )}
         </div>
       )}
@@ -92,13 +95,14 @@ function SegmentSection({ segment }: { segment: SegmentResults }) {
  */
 export function SegmentBreakdown({ segments }: { segments: SegmentResults[] }) {
   const { c } = useStore();
+  const t = useDict(appDict);
   if (segments.length === 0) return null;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <div style={{ fontSize: 13, fontWeight: 600 }}>Гетерогенность эффекта по сегментам</div>
+      <div style={{ fontSize: 13, fontWeight: 600 }}>{t.segments.title}</div>
       <div style={{ fontSize: 12, color: c.textSecondary, marginBottom: 2 }}>
-        Тот же расчёт отдельно внутри каждого сегмента — сравните со строкой выше.
+        {t.segments.subtitle}
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {segments.map((segment) => (

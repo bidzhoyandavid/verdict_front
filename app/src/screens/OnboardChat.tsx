@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../storeContext';
+import { useDict } from '../lib/lang';
+import { appDict } from '../lib/appDict';
 import { ChatBubble } from '../components/ChatBubble';
 import * as api from '../api/client';
 import type { ChatMessage } from '../types';
@@ -16,6 +18,7 @@ import type { ChatMessage } from '../types';
  */
 export function OnboardChat() {
   const { c, s, goScreen, user } = useStore();
+  const t = useDict(appDict);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [context, setContext] = useState('');
@@ -42,9 +45,9 @@ export function OnboardChat() {
         key_metrics: '',
         chat_notes: chatNotes,
       });
-      applyReview(review, `Вот как я понял ваш продукт:\n\n${review.content}`);
+      applyReview(review, t.onboardChat.understood(review.content));
     } catch {
-      agentSays('Не удалось собрать контекст. Проверьте, что бэкенд запущен и ANTHROPIC_API_KEY задан.');
+      agentSays(t.onboardChat.buildFailed);
     } finally {
       setBusy(false);
     }
@@ -61,9 +64,9 @@ export function OnboardChat() {
       const pending = review.questions.filter((q) => q.id !== current.id);
       setQuestions(pending);
       if (pending.length) agentSays(pending[0].text);
-      else agentSays('Спасибо, этого достаточно — все ключевые разделы заполнены.');
+      else agentSays(t.onboardChat.enough);
     } catch {
-      agentSays('Не удалось сохранить ответ. Попробуйте ещё раз.');
+      agentSays(t.onboardChat.saveFailed);
     } finally {
       setBusy(false);
     }
@@ -120,15 +123,17 @@ export function OnboardChat() {
         }}
       >
         <div style={{ fontSize: 13, color: c.textSecondary, textAlign: 'center' }}>
-          Агент изучает описание компании и уточняет детали
+          {t.onboardChat.subtitle}
         </div>
         {messages.map((m) => (
           <ChatBubble key={m.id} message={m} />
         ))}
-        {busy && <div style={{ fontSize: 13, color: c.textSecondary }}>✦ Агент думает...</div>}
+        {busy && (
+          <div style={{ fontSize: 13, color: c.textSecondary }}>{t.onboardChat.thinking}</div>
+        )}
         {!busy && questions.length > 0 && (
           <div style={{ fontSize: 13, color: c.textSecondary, textAlign: 'center' }}>
-            Осталось уточнить: {questions.length}
+            {t.onboardChat.questionsLeft(questions.length)}
           </div>
         )}
         <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
@@ -137,13 +142,15 @@ export function OnboardChat() {
             disabled={busy || !context}
             style={{ ...s.primaryButton, opacity: busy || !context ? 0.5 : 1 }}
           >
-            Всё верно, начать работу
+            {t.onboardChat.allCorrect}
           </button>
         </div>
       </div>
       <div style={{ width: '100%', maxWidth: 640, padding: '12px 16px 24px', display: 'flex', gap: 8 }}>
         <input
-          placeholder={questions.length ? 'Ответить на вопрос агента...' : 'Ответить агенту...'}
+          placeholder={
+            questions.length ? t.onboardChat.answerQuestion : t.onboardChat.answerAgent
+          }
           value={draft}
           disabled={busy}
           onChange={(e) => setDraft(e.target.value)}

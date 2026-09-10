@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '../storeContext';
+import { useDict } from '../lib/lang';
+import { appDict } from '../lib/appDict';
 
 const SNOOZE_KEY = 'verdict.context-reminder-snoozed-until';
 const SNOOZE_DAYS = 7;
@@ -13,6 +15,7 @@ const SNOOZE_DAYS = 7;
  *  Видит только владелец: заполнять контекст больше некому. */
 export function ContextReminder() {
   const { c, user, goScreen } = useStore();
+  const t = useDict(appDict);
 
   const [snoozed, setSnoozed] = useState(() => {
     try {
@@ -52,8 +55,8 @@ export function ContextReminder() {
     >
       <span style={{ flex: 1 }}>
         {started
-          ? 'Контекст компании заполнен не до конца — агент отвечает без специфики вашего продукта.'
-          : 'Контекст компании не задан — агент отвечает без специфики вашего продукта.'}
+          ? t.context.partial
+          : t.context.absent}
       </span>
       <button
         onClick={() => goScreen('onboard-form')}
@@ -67,11 +70,11 @@ export function ContextReminder() {
           cursor: 'pointer',
         }}
       >
-        {started ? 'Продолжить' : 'Заполнить'}
+        {started ? t.context.continueFilling : t.context.fill}
       </button>
       <button
         onClick={snooze}
-        aria-label="Скрыть напоминание"
+        aria-label={t.context.hideReminder}
         style={{
           background: 'none',
           border: 'none',

@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '../storeContext';
+import { useDict } from '../lib/lang';
+import { appDict } from '../lib/appDict';
 import type { CheckResult, CheckStatus } from '../types';
 
 const ICONS: Record<CheckStatus, string> = {
@@ -18,6 +20,7 @@ const ORDER: CheckStatus[] = ['failed', 'warning', 'ok', 'skipped'];
  */
 export function ChecksPanel({ checks }: { checks: CheckResult[] }) {
   const { c } = useStore();
+  const t = useDict(appDict);
   // Проблемные проверки раскрыты сразу, пройденные — по клику.
   const [expanded, setExpanded] = useState(false);
 
@@ -37,7 +40,7 @@ export function ChecksPanel({ checks }: { checks: CheckResult[] }) {
   return (
     <div style={{ border: `1px solid ${c.border}`, borderRadius: 12, padding: 14 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: visible.length ? 10 : 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 600 }}>Проверки</div>
+        <div style={{ fontSize: 13, fontWeight: 600 }}>{t.checks.title}</div>
         <div style={{ display: 'flex', gap: 6 }}>
           {counts.map(({ status, n }) => (
             <span
@@ -68,7 +71,7 @@ export function ChecksPanel({ checks }: { checks: CheckResult[] }) {
               padding: 0,
             }}
           >
-            показать все ({checks.length})
+            {t.checks.showAll(checks.length)}
           </button>
         )}
         {expanded && (
@@ -84,7 +87,7 @@ export function ChecksPanel({ checks }: { checks: CheckResult[] }) {
               padding: 0,
             }}
           >
-            свернуть
+            {t.checks.collapse}
           </button>
         )}
       </div>

@@ -1,3 +1,5 @@
+import { currentLang } from './lib/lang';
+import { appDict } from './lib/appDict';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import * as api from './api/client';
 import { useTestStream } from './api/useTestStream';
@@ -20,7 +22,7 @@ function errorText(error: unknown): string {
   if (error instanceof api.ApiError) return error.message;
   // fetch бросает TypeError, когда бэкенд просто не поднят — самая частая
   // ошибка на локальной разработке, отдельно про это и пишем.
-  return 'Не удалось связаться с сервером';
+  return appDict[currentLang()].errors.noServer;
 }
 
 /** Куда попадает человек после входа.

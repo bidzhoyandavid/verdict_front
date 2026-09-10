@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../storeContext';
+import { useDict } from '../lib/lang';
+import { appDict } from '../lib/appDict';
 import { GRADIENT } from '../theme';
 import { statusMeta } from '../components/ui';
 import type { ABTest } from '../types';
@@ -7,6 +9,7 @@ import type { ABTest } from '../types';
 /** Строка теста со своим меню действий: переименовать / удалить. */
 function TestRow({ test }: { test: ABTest }) {
   const { c, s, currentTestId, selectTest, renameTest, deleteTest } = useStore();
+  const t = useDict(appDict);
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -104,7 +107,7 @@ function TestRow({ test }: { test: ABTest }) {
           setMenuOpen((v) => !v);
           setConfirmDelete(false);
         }}
-        title="Действия"
+        title={t.sidebar.actions}
         style={{
           width: 18,
           textAlign: 'center',
@@ -138,7 +141,7 @@ function TestRow({ test }: { test: ABTest }) {
           }}
         >
           <div onClick={startRename} style={s.menuItem}>
-            Переименовать
+            {t.sidebar.rename}
           </div>
           <div
             onClick={() => {
@@ -147,7 +150,7 @@ function TestRow({ test }: { test: ABTest }) {
             }}
             style={s.menuItem}
           >
-            Скопировать ID
+            {t.sidebar.copyId}
           </div>
           <div
             onClick={() => {
@@ -160,7 +163,7 @@ function TestRow({ test }: { test: ABTest }) {
             }}
             style={s.menuItemDanger}
           >
-            {confirmDelete ? 'Точно удалить?' : 'Удалить тест'}
+            {confirmDelete ? t.sidebar.confirmDelete : t.sidebar.deleteTest}
           </div>
         </div>
       )}
@@ -185,6 +188,7 @@ export function Sidebar() {
     user,
     signOut,
   } = useStore();
+  const t = useDict(appDict);
 
   const wrapStyle = {
     width: sidebarCollapsed ? 56 : 240,
@@ -255,7 +259,7 @@ export function Sidebar() {
         </div>
 
         <button onClick={() => setNewTestModalOpen(true)} style={s.primaryButton}>
-          ✦ Новый тест
+          {t.sidebar.newTest}
         </button>
 
         <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -268,7 +272,7 @@ export function Sidebar() {
               padding: '8px 8px 4px',
             }}
           >
-            Тесты
+            {t.sidebar.tests}
           </div>
           {tests.map((t) => (
             <TestRow key={t.id} test={t} />
@@ -285,7 +289,7 @@ export function Sidebar() {
             cursor: 'pointer',
           }}
         >
-          Все тесты
+          {t.sidebar.allTests}
         </div>
 
         <div style={{ position: 'relative', borderTop: `1px solid ${c.border}`, paddingTop: 10 }}>
@@ -337,14 +341,14 @@ export function Sidebar() {
               }}
             >
               <div onClick={() => goScreen('settings')} style={s.menuItem}>
-                Настройки
+                {t.sidebar.settings}
               </div>
               <div onClick={toggleTheme} style={s.menuItem}>
-                Тема: {theme === 'light' ? 'Светлая' : 'Тёмная'}
+                {t.sidebar.theme(theme === 'light' ? t.sidebar.light : t.sidebar.dark)}
               </div>
-              <div style={s.menuItem}>Помощь / документация</div>
+              <div style={s.menuItem}>{t.sidebar.help}</div>
               <div onClick={signOut} style={s.menuItemDanger}>
-                Выйти
+                {t.sidebar.signOut}
               </div>
             </div>
           )}

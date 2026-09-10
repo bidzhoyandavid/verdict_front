@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useStore } from '../storeContext';
+import { useDict } from '../lib/lang';
+import { resultsDict } from './results.dict';
 import { MONO } from '../theme';
 import type { ResultRow, TestResults } from '../types';
 
@@ -119,6 +121,7 @@ interface TableProps {
 
 function ComparisonTable({ comparison, rows, captioned, separated, openHow, setOpenHow }: TableProps) {
   const { c } = useStore();
+  const t = useDict(resultsDict);
 
   // Колонка «Δ абс.» — не всегда разница средних: на ранговом estimand это
   // сдвиг распределения, и подписать её средним значило бы соврать в заголовке.
@@ -126,13 +129,13 @@ function ComparisonTable({ comparison, rows, captioned, separated, openHow, setO
     rows.map((row) => row.estimandLabel).filter((label): label is string => !!label),
   );
   const single = estimands.size === 1 ? [...estimands][0] : null;
-  const effectLabel = single && single !== 'разница средних' ? 'Эффект' : 'Δ абс.';
-  const effectHint = single ?? 'величина эффекта зависит от метрики';
+  const effectLabel = single && single !== t.meanDiffLabel ? t.effect : t.absoluteDelta;
+  const effectHint = single ?? t.effectHint;
 
   const first = rows[0];
   const omnibus = first.comparisonMode === 'omnibus';
-  const controlLabel = omnibus ? 'контроль' : first.controlGroup ?? 'control';
-  const treatmentLabel = omnibus ? 'вариант' : first.treatmentGroup ?? 'treatment';
+  const controlLabel = omnibus ? t.control : first.controlGroup ?? 'control';
+  const treatmentLabel = omnibus ? t.variant : first.treatmentGroup ?? 'treatment';
 
   const head: React.CSSProperties = {
     padding: '9px 10px',
@@ -187,7 +190,7 @@ function ComparisonTable({ comparison, rows, captioned, separated, openHow, setO
       >
         <div style={{ minWidth: 900 }}>
           <div style={{ display: 'grid', gridTemplateColumns: COLUMNS, background: c.surface }}>
-            <div style={head}>Метрика</div>
+            <div style={head}>{t.metric}</div>
             <div style={{ ...head, textAlign: 'right' }}>{controlLabel}</div>
             <div style={{ ...head, textAlign: 'right' }}>{treatmentLabel}</div>
             <div style={{ ...head, textAlign: 'right' }} title={effectHint}>
@@ -196,7 +199,7 @@ function ComparisonTable({ comparison, rows, captioned, separated, openHow, setO
             <div style={{ ...head, textAlign: 'right' }}>Δ %</div>
             <div style={{ ...head, textAlign: 'right' }}>p-value</div>
             <div style={{ ...head, textAlign: 'right' }}>95% CI</div>
-            <div style={{ ...head, textAlign: 'center' }}>Значимо</div>
+            <div style={{ ...head, textAlign: 'center' }}>{t.significant}</div>
           </div>
 
           {rows.map((row, index) => (
@@ -223,7 +226,7 @@ function ComparisonTable({ comparison, rows, captioned, separated, openHow, setO
                   )}
                   {row.isPrimary && (
                     <span style={{ color: c.accent, fontSize: 10, marginLeft: 6, fontWeight: 600 }}>
-                      ГЛАВНАЯ
+                      {t.primary}
                     </span>
                   )}
                 </div>
@@ -260,7 +263,7 @@ function ComparisonTable({ comparison, rows, captioned, separated, openHow, setO
                       color: row.significant ? c.success : c.textSecondary,
                     }}
                   >
-                    {row.significant === null ? '—' : row.significant ? 'да' : 'нет'}
+                    {row.significant === null ? '—' : row.significant ? t.yes : t.no}
                   </span>
                 </div>
               </div>
@@ -291,15 +294,20 @@ function ComparisonTable({ comparison, rows, captioned, separated, openHow, setO
 
 function Footnotes({ results }: { results: TestResults }) {
   const { c } = useStore();
+  const t = useDict(resultsDict);
   const notes: string[] = [];
 
   const comparisons = new Set(results.rows.map((row) => row.comparison));
   if (results.correctionApplied) {
     const scope =
       comparisons.size > 1
-        ? `${results.rows.length} тестов (${new Set(results.rows.map((r) => r.metric)).size} метрик × ${comparisons.size} сравнений)`
-        : `${results.rows.length} метрик`;
-    notes.push(`p-value скорректированы поправкой ${results.correctionApplied} на ${scope}`);
+        ? t.scopeTests(
+            results.rows.length,
+            new Set(results.rows.map((r) => r.metric)).size,
+            comparisons.size,
+          )
+        : t.scopeMetrics(results.rows.length);
+    notes.push(t.correctionNote(results.correctionApplied, scope));
   }
   const estimands = [
     ...new Set(
@@ -310,7 +318,7 @@ function Footnotes({ results }: { results: TestResults }) {
     ),
   ];
   if (estimands.length > 0) {
-    notes.push(`Величина эффекта и интервал — ${estimands.join(', ')}, а не разница средних`);
+    notes.push(t.estimandNote(estimands.join(', ')));
   }
 
   const rowWarnings = results.rows.flatMap((row) =>

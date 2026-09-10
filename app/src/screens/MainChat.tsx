@@ -1,5 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { useStore } from '../storeContext';
+import { useDict } from '../lib/lang';
+import { appDict } from '../lib/appDict';
 import { AnsweredInterruptCard } from '../components/AnsweredInterruptCard';
 import { ChatBubble } from '../components/ChatBubble';
 import { Headline } from '../components/Headline';
@@ -17,6 +19,7 @@ import { GRADIENT } from '../theme';
 export function MainChat() {
   const { c, s, currentTest, messages, sendMessage, awaitingReply, progress, setNewTestModalOpen, user } =
     useStore();
+    const t = useDict(appDict);
   const [draft, setDraft] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -64,7 +67,7 @@ export function MainChat() {
 
       {currentTest.results && currentTest.results.rows.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div style={{ fontSize: 13, fontWeight: 600 }}>Результаты по метрикам</div>
+          <div style={{ fontSize: 13, fontWeight: 600 }}>{t.chat.metricResults}</div>
           <ResultsTable results={currentTest.results} />
         </div>
       )}
@@ -99,7 +102,9 @@ export function MainChat() {
           flexShrink: 0,
         }}
       >
-        <div style={{ fontSize: 15, fontWeight: 600 }}>{currentTest ? currentTest.name : 'Новый чат'}</div>
+        <div style={{ fontSize: 15, fontWeight: 600 }}>
+          {currentTest ? currentTest.name : t.chat.newChat}
+        </div>
         {currentTest && <StatusBadge status={currentTest.status} />}
       </div>
 
@@ -127,13 +132,13 @@ export function MainChat() {
           >
             <Logo size={52} radius={14} />
             <div style={{ fontSize: 18, fontWeight: 600 }}>
-              Добро пожаловать, {user?.name.split(' ')[0]}
+              {t.chat.welcome(user?.name.split(' ')[0] ?? '')}
             </div>
             <div style={{ fontSize: 14, color: c.textSecondary, maxWidth: 360 }}>
-              Создайте тест — агент проанализирует данные и предложит выводы
+              {t.chat.createHint}
             </div>
             <button onClick={() => setNewTestModalOpen(true)} style={s.primaryButton}>
-              ✦ Создать новый тест
+              {t.chat.createTest}
             </button>
           </div>
         )}
@@ -161,7 +166,7 @@ export function MainChat() {
             {!runMessageId && runPanel}
 
             {analyzing && progress.mode === 'answer' && (
-              <div style={{ fontSize: 13, color: c.textSecondary }}>✦ Агент печатает...</div>
+              <div style={{ fontSize: 13, color: c.textSecondary }}>{t.chat.agentTyping}</div>
             )}
 
             {analyzing && progress.mode !== 'answer' && progress.steps.length > 0 && (
@@ -179,12 +184,12 @@ export function MainChat() {
                     animation: 'pulseGlow 1.6s ease-in-out infinite',
                   }}
                 />
-                <div style={{ fontSize: 13, color: c.textSecondary }}>✦ Агент анализирует данные...</div>
+                <div style={{ fontSize: 13, color: c.textSecondary }}>{t.chat.agentAnalysing}</div>
               </div>
             )}
 
             {awaitingReply && !analyzing && (
-              <div style={{ fontSize: 13, color: c.textSecondary }}>✦ Агент печатает...</div>
+              <div style={{ fontSize: 13, color: c.textSecondary }}>{t.chat.agentTyping}</div>
             )}
 
             {paused && currentTest.pendingInterrupt && !readOnly && (
@@ -194,7 +199,7 @@ export function MainChat() {
             {paused && currentTest.pendingInterrupt && readOnly && (
               // Вопрос показываем, кнопки — нет: отвечает та команда, чей прогон.
               <div style={{ fontSize: 13, color: c.textSecondary }}>
-                Агент ждёт ответа от команды-владельца теста.
+                {t.chat.waitingOwnerTeam}
               </div>
             )}
 
@@ -208,7 +213,7 @@ export function MainChat() {
                   color: c.error,
                 }}
               >
-                Анализ упал: {currentTest.error}
+                {t.chat.analysisFailed(currentTest.error)}
               </div>
             )}
 
@@ -227,8 +232,8 @@ export function MainChat() {
           }}
         >
           {currentTest.teamName
-            ? `Тест команды «${currentTest.teamName}» — только просмотр.`
-            : 'Тест другой команды — только просмотр.'}
+            ? t.chat.readOnlyNamed(currentTest.teamName)
+            : t.chat.readOnly}
         </div>
       )}
 
@@ -243,7 +248,7 @@ export function MainChat() {
         >
           <input
             placeholder={
-              paused ? 'Сначала ответьте на вопрос агента выше' : 'Спросите агента про этот тест...'
+              paused ? t.chat.answerFirst : t.chat.askAgent
             }
             value={draft}
             disabled={inputDisabled}

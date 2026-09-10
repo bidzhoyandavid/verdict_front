@@ -2,6 +2,9 @@ import { useState } from 'react';
 import { useStore } from '../storeContext';
 import { ChartPanel } from './ChartPanel';
 import { MONO } from '../theme';
+import { useDict } from '../lib/lang';
+import { interruptDict } from './InterruptCard.dict';
+import type { InterruptDict } from './InterruptCard.dict';
 import type {
   InterruptOption,
   MethodRobustness,
@@ -18,73 +21,15 @@ import type {
   UnitCandidate,
 } from '../types';
 
-const COMPARISON_STATS: { key: string; label: string }[] = [
+const COMPARISON_STATS: { key: string; label?: string }[] = [
   { key: 'n', label: 'n' },
-  { key: 'mean', label: 'среднее' },
-  { key: 'median', label: 'медиана' },
+  { key: 'mean' },
+  { key: 'median' },
   { key: 'std', label: 'std' },
   { key: 'p95', label: 'p95' },
   { key: 'p99', label: 'p99' },
   { key: 'max', label: 'max' },
 ];
-
-export const METHOD_LABELS: Record<string, string> = {
-  winsorize: 'Винсоризация',
-  trim: 'Отбросить выбросы',
-  cap: 'Обрезать по границам',
-  log_transform: 'Логарифмировать',
-  log_winsorize: 'Лог + винсоризация',
-  none: 'Ничего не делать',
-  drop: 'Удалить строки с пропусками',
-  stop: 'Остановить расчёты',
-  continue: 'Продолжить, понимая риск',
-  keep: 'Оставить как есть',
-  fill_zero: 'Заполнить нулём',
-  impute_median: 'Импутировать медианой',
-  impute_mean: 'Импутировать средним',
-  // SRM-решения: подписи нужны истории чата, у живых кнопок свой label.
-  exposure: 'Считать экспозицию',
-  rows: 'Считать строки',
-  unit: 'Обычный A/B',
-  switchback: 'Свитчбэк',
-  equal: 'Равные доли',
-  manual: 'Свои доли',
-  declared: 'Как в данных',
-  config: 'Как задано в брифе',
-  column: 'Выбрана колонка',
-  defaults: 'Значения по умолчанию',
-  custom: 'Свои значения',
-  vs_control: 'Каждая против контроля',
-  all_pairs: 'Каждая с каждой',
-  omnibus: 'Один тест по всем веткам',
-  yes: 'Да, посчитать по сегментам',
-  no: 'Нет, только в целом',
-  separate: 'По отдельности',
-  per_metric: 'По каждой метрике отдельно',
-  cross: 'По пересечению',
-};
-
-/** Заголовок карточки по типу вопроса. */
-export const INTERRUPT_TITLES: Record<string, string> = {
-  group_column: 'Какая колонка делит на ветки эксперимента?',
-  srm_design: 'Какой это тип эксперимента?',
-  srm_exposure: 'Чем измеряется экспозиция?',
-  srm_unit: 'Что здесь единица рандомизации?',
-  srm_split: 'Каким должно было быть распределение по группам?',
-  srm_segments: 'По каким сегментам проверить SRM?',
-  srm_gate: 'Обнаружен SRM — продолжать расчёты?',
-  group_comparisons: 'Что с чем сравниваем?',
-  null_review: 'Что делать с пропусками?',
-  heterogeneity_gate: 'Считать эффект отдельно по сегментам?',
-  heterogeneity_fields: 'По каким полям?',
-  heterogeneity_mode: 'Пересечение сегментов или по отдельности?',
-  alpha_setup: 'Какой уровень значимости использовать?',
-  primary_metrics: 'Какие метрики главные?',
-  outlier_policy: 'Обрабатывать выбросы одинаково у всех метрик?',
-  test_method: 'Каким критерием сравнивать группы?',
-  outlier_review: 'Как обработать выбросы?',
-  outlier_confirm: 'Согласны с обработкой выбросов?',
-};
 
 /** Вопросы-решения: «затронутых строк» у их вариантов нет. */
 const DECISION_KINDS = new Set([
@@ -99,33 +44,34 @@ const DECISION_KINDS = new Set([
   'heterogeneity_mode',
 ]);
 
-function affected(option: InterruptOption): string {
+function affected(option: InterruptOption, t: InterruptDict): string {
   if (option.share_affected !== undefined) {
-    return `${(option.share_affected * 100).toFixed(1)}% строк (${option.n_affected})`;
+    return t.rowsAffected((option.share_affected * 100).toFixed(1), option.n_affected);
   }
-  return option.n_affected ? `${option.n_affected} строк` : '—';
+  return option.n_affected ? t.rowsCount(option.n_affected) : '—';
 }
 
 /** Пропуски по колонкам и по группам — на этих числах строится решение. */
 function NullStatsTable({ stats }: { stats: NullStats }) {
+  const t = useDict(interruptDict);
   const { c } = useStore();
   const rows = stats.per_column.filter((row) => row.n_null > 0);
 
   return (
     <div style={{ fontSize: 12, color: c.textSecondary, display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <div>Всего строк: {stats.n_rows}</div>
+      <div>{t.totalRows}: {stats.n_rows}</div>
       {rows.map((row) => (
         <div key={row.column}>
           <span style={{ fontFamily: MONO }}>{row.column}</span>
-          {row.role === 'key' && ' (ключевая колонка)'}: {row.n_null} пропусков (
+          {row.role === 'key' && t.keyColumn}: {t.nullsIn(row.n_null)} (
           {(row.share * 100).toFixed(2)}%)
         </div>
       ))}
       {stats.metric_by_group.length > 0 && (
         <div>
-          По группам:{' '}
+          {t.byGroup}{' '}
           {stats.metric_by_group
-            .map((g) => `${g.group} — ${g.n_null} из ${g.n_rows} (${(g.share * 100).toFixed(2)}%)`)
+            .map((g) => t.groupNulls(g.group, g.n_null, g.n_rows, (g.share * 100).toFixed(2)))
             .join('; ')}
         </div>
       )}
@@ -136,6 +82,7 @@ function NullStatsTable({ stats }: { stats: NullStats }) {
 /** Фактическое распределение по группам против ожидаемого — главный аргумент
  *  в разговоре про SRM: сначала числа, потом p-value. */
 function SrmAllocationTable({ rows, unitCol }: { rows: SrmAllocationRow[]; unitCol?: string | null }) {
+  const t = useDict(interruptDict);
   const { c } = useStore();
 
   return (
@@ -143,11 +90,11 @@ function SrmAllocationTable({ rows, unitCol }: { rows: SrmAllocationRow[]; unitC
       <table style={{ borderCollapse: 'collapse', fontSize: 12, width: '100%' }}>
         <thead>
           <tr style={{ color: c.textSecondary, textAlign: 'left' }}>
-            <th style={{ padding: '4px 8px 4px 0' }}>Группа</th>
-            <th style={{ padding: '4px 8px' }}>{unitCol ? `Уникальных ${unitCol}` : 'Строк'}</th>
-            <th style={{ padding: '4px 8px' }}>Доля</th>
-            <th style={{ padding: '4px 8px' }}>Ожидалось</th>
-            <th style={{ padding: '4px 8px' }}>Отклонение</th>
+            <th style={{ padding: '4px 8px 4px 0' }}>{t.group}</th>
+            <th style={{ padding: '4px 8px' }}>{unitCol ? t.uniqueOf(unitCol) : t.rows}</th>
+            <th style={{ padding: '4px 8px' }}>{t.share}</th>
+            <th style={{ padding: '4px 8px' }}>{t.expected}</th>
+            <th style={{ padding: '4px 8px' }}>{t.deviation}</th>
           </tr>
         </thead>
         <tbody style={{ fontFamily: MONO }}>
@@ -178,23 +125,24 @@ function num(value: number | null | undefined, digits = 4): string {
 /** Что агент увидел в данных до выбора обработки: рекомендация без этих чисел —
  *  просто мнение. */
 function OutlierDiagnosticsBlock({ diag }: { diag: OutlierDiagnostics }) {
+  const t = useDict(interruptDict);
   const { c } = useStore();
 
   return (
     <div style={{ fontSize: 12, color: c.textSecondary, display: 'flex', flexDirection: 'column', gap: 4 }}>
       <div style={{ fontFamily: MONO }}>
-        n={diag.n} · медиана {num(diag.median)} · среднее {num(diag.mean)} · max {num(diag.max)}
+        {t.profileHead(diag.n, num(diag.median), num(diag.mean), num(diag.max))}
       </div>
       <div style={{ fontFamily: MONO }}>
-        асимметрия {num(diag.skewness, 3)} · эксцесс {num(diag.kurtosis, 3)} · выбросов{' '}
+        {t.profileMoments(num(diag.skewness, 3), num(diag.kurtosis, 3))}{' '}
         {(diag.outlier_share * 100).toFixed(2)}% ({diag.n_outliers})
       </div>
       {diag.top1_share_of_sum !== null && (
-        <div>На верхний 1% приходится {(diag.top1_share_of_sum * 100).toFixed(1)}% суммы метрики.</div>
+        <div>{t.top1Share((diag.top1_share_of_sum * 100).toFixed(1))}</div>
       )}
       {diag.negative_share > 0 && (
         <div>
-          Отрицательных значений {(diag.negative_share * 100).toFixed(1)}% — логарифмирование неприменимо.
+          {t.negativeShare((diag.negative_share * 100).toFixed(1))}
         </div>
       )}
       <div style={{ fontFamily: MONO }}>
@@ -207,6 +155,7 @@ function OutlierDiagnosticsBlock({ diag }: { diag: OutlierDiagnostics }) {
 
 /** Свои квантили: пресеты — удобство, а не ограничение, бэкенд принимает любую пару. */
 function CustomWinsorize({ onApply, busy }: { onApply: (lower: number, upper: number) => void; busy: boolean }) {
+  const t = useDict(interruptDict);
   const { c, s } = useStore();
   const [lower, setLower] = useState('1');
   const [upper, setUpper] = useState('99');
@@ -222,7 +171,7 @@ function CustomWinsorize({ onApply, busy }: { onApply: (lower: number, upper: nu
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: c.textSecondary }}>
-      <span>Свои квантили, %:</span>
+      <span>{t.ownQuantiles}</span>
       <input
         value={lower}
         onChange={(e) => setLower(e.target.value)}
@@ -239,7 +188,7 @@ function CustomWinsorize({ onApply, busy }: { onApply: (lower: number, upper: nu
         disabled={busy || !valid}
         style={{ ...s.secondaryButton, padding: '4px 12px', opacity: busy || !valid ? 0.5 : 1 }}
       >
-        Применить
+        {t.apply}
       </button>
     </div>
   );
@@ -247,6 +196,7 @@ function CustomWinsorize({ onApply, busy }: { onApply: (lower: number, upper: nu
 
 /** Что обработка сделала с метрикой: до, после и относительное изменение. */
 function ComparisonTable({ rows }: { rows: OutlierComparisonRow[] }) {
+  const t = useDict(interruptDict);
   const { c } = useStore();
 
   return (
@@ -254,10 +204,10 @@ function ComparisonTable({ rows }: { rows: OutlierComparisonRow[] }) {
       <table style={{ borderCollapse: 'collapse', fontSize: 12, width: '100%' }}>
         <thead>
           <tr style={{ color: c.textSecondary, textAlign: 'left' }}>
-            <th style={{ padding: '4px 8px 4px 0' }}>Группа</th>
+            <th style={{ padding: '4px 8px 4px 0' }}>{t.group}</th>
             {COMPARISON_STATS.map((stat) => (
               <th key={stat.key} style={{ padding: '4px 8px' }}>
-                {stat.label}
+                {stat.label ?? t.aggregates[stat.key as 'mean' | 'median']}
               </th>
             ))}
           </tr>
@@ -293,6 +243,7 @@ function ComparisonTable({ rows }: { rows: OutlierComparisonRow[] }) {
 /** Подтверждение обработки выбросов: сначала показываем разницу, потом
  *  спрашиваем согласие. Отказ возвращает к выбору варианта. */
 function OutlierConfirmCard({ interrupt }: { interrupt: PendingInterrupt }) {
+  const t = useDict(interruptDict);
   const { c, s, answerInterrupt } = useStore();
   const [busy, setBusy] = useState(false);
 
@@ -318,10 +269,10 @@ function OutlierConfirmCard({ interrupt }: { interrupt: PendingInterrupt }) {
       }}
     >
       <div>
-        <div style={{ fontSize: 14, fontWeight: 600 }}>Согласны с обработкой выбросов?</div>
+        <div style={{ fontSize: 14, fontWeight: 600 }}>{t.confirmOutliers}</div>
         <div style={{ fontSize: 13, color: c.textSecondary, marginTop: 4 }}>
           {interrupt.report?.interpretation ??
-            `Применён вариант ${interrupt.decision?.method ?? ''}. Сравните метрику до и после.`}
+            t.appliedCompare(interrupt.decision?.method ?? '')}
         </div>
       </div>
 
@@ -334,14 +285,14 @@ function OutlierConfirmCard({ interrupt }: { interrupt: PendingInterrupt }) {
           disabled={busy}
           style={{ ...s.primaryButton, opacity: busy ? 0.6 : 1 }}
         >
-          Да, продолжаем
+          {t.yesContinue}
         </button>
         <button
           onClick={() => void answer(false)}
           disabled={busy}
           style={{ ...s.secondaryButton, opacity: busy ? 0.6 : 1 }}
         >
-          Нет, выбрать другой вариант
+          {t.noPickAnother}
         </button>
       </div>
     </div>
@@ -352,13 +303,14 @@ function OutlierConfirmCard({ interrupt }: { interrupt: PendingInterrupt }) {
  *  поэтому рядом с колонкой видно, на что она реально бьётся. */
 function SegmentPicker({
   candidates,
-  primaryLabel = 'Проверить по выбранным',
-  fallbackLabel = 'Только общий сплит',
+  primaryLabel,
+  fallbackLabel,
 }: {
   candidates: SegmentCandidate[];
   primaryLabel?: string;
   fallbackLabel?: string;
 }) {
+  const t = useDict(interruptDict);
   const { c, s, answerInterrupt } = useStore();
   const [chosen, setChosen] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -400,7 +352,7 @@ function SegmentPicker({
             />
             <span style={{ minWidth: 0 }}>
               <span style={{ fontFamily: MONO, fontSize: 13 }}>{candidate.column}</span>
-              <span style={{ fontSize: 12, color: c.textSecondary }}> · {candidate.n_levels} значений</span>
+              <span style={{ fontSize: 12, color: c.textSecondary }}>{t.nLevels(candidate.n_levels)}</span>
               <div style={{ fontSize: 12, color: c.textSecondary }}>
                 {candidate.levels
                   .slice(0, 5)
@@ -419,14 +371,14 @@ function SegmentPicker({
           disabled={busy || chosen.length === 0}
           style={{ ...s.primaryButton, opacity: busy || chosen.length === 0 ? 0.5 : 1 }}
         >
-          {primaryLabel}
+          {primaryLabel ?? t.checkSelected}
         </button>
         <button
           onClick={() => void send([])}
           disabled={busy}
           style={{ ...s.secondaryButton, opacity: busy ? 0.6 : 1 }}
         >
-          {fallbackLabel}
+          {fallbackLabel ?? t.overallSplitOnly}
         </button>
       </div>
     </>
@@ -438,6 +390,7 @@ function SegmentPicker({
  * имеет смысл, глядя на него.
  */
 function CalibrationLine({ robustness }: { robustness: MethodRobustness }) {
+  const t = useDict(interruptDict);
   const { c } = useStore();
   const off = !robustness.clt_ok;
 
@@ -451,10 +404,10 @@ function CalibrationLine({ robustness }: { robustness: MethodRobustness }) {
         padding: '6px 10px',
       }}
     >
-      Ложных срабатываний {(robustness.fpr * 100).toFixed(1)}% при заявленных{' '}
-      {(robustness.alpha * 100).toFixed(0)}% (интервал{' '}
+      {t.falsePositives((robustness.fpr * 100).toFixed(1), (robustness.alpha * 100).toFixed(0))}
+      {' '}({t.interval}{' '}
       {(robustness.fpr_ci[0] * 100).toFixed(1)}–{(robustness.fpr_ci[1] * 100).toFixed(1)}%)
-      {robustness.conservative && ' — критерий осторожен, реальный эффект может не дотянуть'}
+      {robustness.conservative && t.conservative}
     </div>
   );
 }
@@ -466,6 +419,7 @@ function CalibrationLine({ robustness }: { robustness: MethodRobustness }) {
  * расходятся, а не по числу строк в таблице.
  */
 function PolicyMetricsTable({ metrics }: { metrics: PolicyMetric[] }) {
+  const t = useDict(interruptDict);
   const { c } = useStore();
 
   return (
@@ -474,12 +428,12 @@ function PolicyMetricsTable({ metrics }: { metrics: PolicyMetric[] }) {
         <div key={metric.id} style={{ fontSize: 12, color: c.textSecondary }}>
           <span style={{ fontFamily: MONO, fontSize: 13, color: c.textPrimary }}>{metric.column}</span>
           {' · '}
-          скос {metric.diagnostics.skewness.toFixed(1)}, выбросов{' '}
+          {t.skewOutliers(metric.diagnostics.skewness.toFixed(1), '')}{' '}
           {(metric.diagnostics.outlier_share * 100).toFixed(1)}%
           {metric.diagnostics.zero_share > 0.1 &&
-            `, нулей ${(metric.diagnostics.zero_share * 100).toFixed(0)}%`}
+            t.zeros((metric.diagnostics.zero_share * 100).toFixed(0))}
           {' → '}
-          {METHOD_LABELS[metric.recommended] ?? metric.recommended}
+          {t.methodLabels[metric.recommended] ?? metric.recommended}
         </div>
       ))}
     </div>
@@ -493,6 +447,7 @@ function PolicyMetricsTable({ metrics }: { metrics: PolicyMetric[] }) {
  * галочка на строку в обоих случаях, но смотрит аналитик на разное.
  */
 function MetricPicker({ metrics, recommended }: { metrics: MetricCandidate[]; recommended?: string }) {
+  const t = useDict(interruptDict);
   const { c, s, answerInterrupt } = useStore();
   const [chosen, setChosen] = useState<string[]>(() =>
     metrics.filter((m) => m.is_primary_guess).map((m) => m.id),
@@ -537,7 +492,7 @@ function MetricPicker({ metrics, recommended }: { metrics: MetricCandidate[]; re
             <span style={{ minWidth: 0 }}>
               <span style={{ fontFamily: MONO, fontSize: 13 }}>{metric.column}</span>
               {metric.column === recommended && (
-                <span style={{ fontSize: 12, color: c.accent }}> · рекомендуется</span>
+                <span style={{ fontSize: 12, color: c.accent }}>{t.recommended}</span>
               )}
               {metric.summary && (
                 <div style={{ fontSize: 12, color: c.textSecondary }}>{metric.summary}</div>
@@ -553,14 +508,14 @@ function MetricPicker({ metrics, recommended }: { metrics: MetricCandidate[]; re
           disabled={busy || chosen.length === 0}
           style={{ ...s.primaryButton, opacity: busy || chosen.length === 0 ? 0.5 : 1 }}
         >
-          Разобрать выбранные
+          {t.reviewSelected}
         </button>
         <button
           onClick={() => void send(metrics.map((m) => m.id))}
           disabled={busy}
           style={{ ...s.secondaryButton, opacity: busy ? 0.6 : 1 }}
         >
-          Все главные
+          {t.allPrimary}
         </button>
       </div>
     </>
@@ -569,18 +524,19 @@ function MetricPicker({ metrics, recommended }: { metrics: MetricCandidate[]; re
 
 /** Результат SRM внутри срезов: где перекос есть и на каких значениях. */
 function SegmentResults({ segments }: { segments: SrmSegmentResult[] }) {
+  const t = useDict(interruptDict);
   const { c } = useStore();
 
   return (
     <div style={{ fontSize: 12, color: c.textSecondary, display: 'flex', flexDirection: 'column', gap: 6 }}>
       {segments.map((segment) => (
         <div key={segment.column}>
-          <span style={{ fontFamily: MONO }}>{segment.column}</span> ({segment.n_levels_tested} значений,
+          <span style={{ fontFamily: MONO }}>{segment.column}</span> ({t.segmentTested(segment.n_levels_tested)}
           alpha {segment.alpha.toPrecision(2)}):{' '}
           {segment.failed_levels.length > 0 ? (
-            <span style={{ color: c.error }}>перекос в {segment.failed_levels.join(', ')}</span>
+            <span style={{ color: c.error }}>{t.skewIn(segment.failed_levels.join(', '))}</span>
           ) : (
-            'перекоса нет'
+            t.noSkew
           )}
         </div>
       ))}
@@ -591,6 +547,7 @@ function SegmentResults({ segments }: { segments: SrmSegmentResult[] }) {
 /** Колонки-кандидаты на единицу рандомизации: сколько уникальных значений и
  *  сколько строк на значение — по этим двум числам выбор и делается. */
 function UnitCandidates({ candidates }: { candidates: UnitCandidate[] }) {
+  const t = useDict(interruptDict);
   const { c } = useStore();
 
   return (
@@ -599,11 +556,11 @@ function UnitCandidates({ candidates }: { candidates: UnitCandidate[] }) {
         <div key={candidate.column}>
           <span style={{ fontFamily: MONO, fontSize: 13, color: c.textPrimary }}>{candidate.column}</span>
           {' — '}
-          {candidate.n_unique} уникальных
+          {t.uniqueValues(candidate.n_unique)}
           {candidate.one_row_per_value
-            ? ', по одной строке на значение'
-            : `, ≈${candidate.rows_per_unit} строк на значение`}
-          {candidate.null_share > 0 && `, пропусков ${(candidate.null_share * 100).toFixed(1)}%`}
+            ? t.oneRowPerValue
+            : t.rowsPerValue(String(candidate.rows_per_unit))}
+          {candidate.null_share > 0 && t.nullShare((candidate.null_share * 100).toFixed(1))}
         </div>
       ))}
     </div>
@@ -612,6 +569,7 @@ function UnitCandidates({ candidates }: { candidates: UnitCandidate[] }) {
 
 /** Кандидаты в экспозицию: суммы по веткам — то, что и будет сравниваться. */
 function ExposureCandidates({ candidates }: { candidates: ExposureCandidate[] }) {
+  const t = useDict(interruptDict);
   const { c } = useStore();
 
   return (
@@ -623,7 +581,7 @@ function ExposureCandidates({ candidates }: { candidates: ExposureCandidate[] })
           {Object.entries(candidate.totals_by_group)
             .map(([group, total]) => `${group}: ${total.toLocaleString('ru-RU')}`)
             .join(', ')}
-          {candidate.null_share > 0 && `, пропусков ${(candidate.null_share * 100).toFixed(1)}%`}
+          {candidate.null_share > 0 && t.nullShare((candidate.null_share * 100).toFixed(1))}
         </div>
       ))}
     </div>
@@ -632,6 +590,7 @@ function ExposureCandidates({ candidates }: { candidates: ExposureCandidate[] })
 
 /** Своя колонка экспозиции: эвристика предлагает не всё, что годится. */
 function CustomExposure({ columns, busy }: { columns: string[]; busy: boolean }) {
+  const t = useDict(interruptDict);
   const { c, s, answerInterrupt } = useStore();
   const [column, setColumn] = useState(columns[0] ?? '');
   const [sending, setSending] = useState(false);
@@ -650,7 +609,7 @@ function CustomExposure({ columns, busy }: { columns: string[]; busy: boolean })
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       <div style={{ fontSize: 12, color: c.textSecondary }}>
-        Нужной колонки нет в списке — выберите любую числовую:
+        {t.columnNotListed}
       </div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         {/* Список колонок приходит не всегда (пауза могла быть создана раньше),
@@ -672,7 +631,7 @@ function CustomExposure({ columns, busy }: { columns: string[]; busy: boolean })
           <input
             value={column}
             onChange={(e) => setColumn(e.target.value)}
-            placeholder="имя колонки"
+            placeholder={t.columnNamePlaceholder}
             disabled={busy || sending}
             style={{ ...s.input, flex: 1, fontFamily: MONO, fontSize: 13 }}
           />
@@ -682,7 +641,7 @@ function CustomExposure({ columns, busy }: { columns: string[]; busy: boolean })
           disabled={disabled}
           style={{ ...s.secondaryButtonSmall, opacity: disabled ? 0.6 : 1 }}
         >
-          Считать по ней
+          {t.countByIt}
         </button>
       </div>
     </div>
@@ -691,6 +650,7 @@ function CustomExposure({ columns, busy }: { columns: string[]; busy: boolean })
 
 /** Плановые доли вручную: поля на группу, сумма считается на лету. */
 function ManualSplit({ groups, initial }: { groups: string[]; initial: Record<string, number> }) {
+  const t = useDict(interruptDict);
   const { c, s, answerInterrupt } = useStore();
   const [shares, setShares] = useState<Record<string, string>>(() =>
     Object.fromEntries(groups.map((group) => [group, String(initial[group] ?? '')])),
@@ -739,14 +699,14 @@ function ManualSplit({ groups, initial }: { groups: string[]; initial: Record<st
         ))}
       </div>
       <div style={{ fontSize: 12, color: c.textSecondary }}>
-        Сумма — {total || 0}. Доли нормируются, поэтому можно вводить и проценты, и «1/1/2».
+        {t.splitSumHint(String(total || 0))}
       </div>
       <button
         onClick={() => void send()}
         disabled={busy || !valid}
         style={{ ...s.secondaryButton, opacity: busy || !valid ? 0.6 : 1 }}
       >
-        Задать плановый сплит
+        {t.setPlannedSplit}
       </button>
     </div>
   );
@@ -756,6 +716,7 @@ function ManualSplit({ groups, initial }: { groups: string[]; initial: Record<st
  *  ложного срабатывания у них разная: SRM должен почти никогда не срабатывать
  *  на здоровом сплите, а значимость метрик — обычный компромисс аналитика. */
 function AlphaSetup({ defaults }: { defaults: { srm_alpha: number; metric_alpha: number } }) {
+  const t = useDict(interruptDict);
   const { c, s, answerInterrupt } = useStore();
   const [srmAlpha, setSrmAlpha] = useState(String(defaults.srm_alpha));
   const [metricAlpha, setMetricAlpha] = useState(String(defaults.metric_alpha));
@@ -782,17 +743,17 @@ function AlphaSetup({ defaults }: { defaults: { srm_alpha: number; metric_alpha:
         disabled={busy}
         style={{ ...s.primaryButton, opacity: busy ? 0.6 : 1 }}
       >
-        Значения по умолчанию (SRM {defaults.srm_alpha}, метрики {defaults.metric_alpha})
+        {t.alphaDefaults(String(defaults.srm_alpha), String(defaults.metric_alpha))}
       </button>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: c.textSecondary }}>
-        <span>alpha для SRM:</span>
+        <span>{t.alphaSrm}</span>
         <input
           value={srmAlpha}
           onChange={(e) => setSrmAlpha(e.target.value)}
           disabled={busy}
           style={{ ...s.chatInput, width: 80, padding: '4px 8px', fontFamily: MONO }}
         />
-        <span>alpha для метрик:</span>
+        <span>{t.alphaMetrics}</span>
         <input
           value={metricAlpha}
           onChange={(e) => setMetricAlpha(e.target.value)}
@@ -804,7 +765,7 @@ function AlphaSetup({ defaults }: { defaults: { srm_alpha: number; metric_alpha:
           disabled={busy || !valid}
           style={{ ...s.secondaryButton, padding: '4px 12px', opacity: busy || !valid ? 0.5 : 1 }}
         >
-          Применить свои
+          {t.applyOwn}
         </button>
       </div>
     </div>
@@ -813,6 +774,7 @@ function AlphaSetup({ defaults }: { defaults: { srm_alpha: number; metric_alpha:
 
 /** Размеры веток перед выбором схемы сравнения. */
 function GroupSizes({ sizes, suggested }: { sizes: Record<string, number>; suggested?: string | null }) {
+  const t = useDict(interruptDict);
   const { c } = useStore();
 
   return (
@@ -820,7 +782,7 @@ function GroupSizes({ sizes, suggested }: { sizes: Record<string, number>; sugge
       {Object.entries(sizes).map(([group, n]) => (
         <span key={group}>
           <span style={{ fontFamily: MONO, color: c.textPrimary }}>{group}</span> — {n}
-          {group === suggested && ' (похоже на контроль)'}
+          {group === suggested && t.looksLikeControl}
         </span>
       ))}
     </div>
@@ -876,6 +838,7 @@ function recommendedOptionId(interrupt: PendingInterrupt): string | null {
   return optionId(candidates[0]);
 }
 export function InterruptCard({ interrupt }: { interrupt: PendingInterrupt }) {
+  const t = useDict(interruptDict);
   const { c, s, answerInterrupt } = useStore();
   const [busy, setBusy] = useState(false);
 
@@ -943,17 +906,18 @@ export function InterruptCard({ interrupt }: { interrupt: PendingInterrupt }) {
     >
       <div>
         <div style={{ fontSize: 14, fontWeight: 600 }}>
-          {INTERRUPT_TITLES[interrupt.kind] ?? 'Как обработать выбросы?'}
+          {t.titles[interrupt.kind] ?? t.titles.outlier_review}
         </div>
         <div style={{ fontSize: 13, color: c.textSecondary, marginTop: 4 }}>
           {usesReportText ? (
             interrupt.report?.interpretation ??
-            'В данных есть пропуски. Выбор влияет на состав выборки, поэтому решение за вами.'
+            t.nullsIntro
           ) : (
             <>
-              В колонке <span style={{ fontFamily: MONO }}>{interrupt.metric_col}</span> выбросов{' '}
-              {((interrupt.outlier_share ?? 0) * 100).toFixed(1)}%. Выбор влияет на результат теста,
-              поэтому решение за вами.
+              {t.outliersIntro(
+                interrupt.metric_col ?? '',
+                ((interrupt.outlier_share ?? 0) * 100).toFixed(1),
+              )}
             </>
           )}
         </div>
@@ -967,7 +931,9 @@ export function InterruptCard({ interrupt }: { interrupt: PendingInterrupt }) {
 
       {isOutlierReview && interrupt.rejected && interrupt.rejected.length > 0 && (
         <div style={{ fontSize: 12, color: c.textSecondary }}>
-          Уже отклонено: {interrupt.rejected.map((r) => METHOD_LABELS[r.method] ?? r.method).join(', ')}.
+          {t.alreadyRejected(
+            interrupt.rejected.map((r) => t.methodLabels[r.method] ?? r.method).join(', '),
+          )}
         </div>
       )}
 
@@ -991,8 +957,8 @@ export function InterruptCard({ interrupt }: { interrupt: PendingInterrupt }) {
       {isHeterogeneityFields && interrupt.candidates && (
         <SegmentPicker
           candidates={interrupt.candidates}
-          primaryLabel="Считать по выбранным"
-          fallbackLabel="Отменить — только общий эффект"
+          primaryLabel={t.countSelected}
+          fallbackLabel={t.cancelOverallOnly}
         />
       )}
 
@@ -1018,7 +984,7 @@ export function InterruptCard({ interrupt }: { interrupt: PendingInterrupt }) {
 
       {isSrmGate && interrupt.causes && interrupt.causes.length > 0 && (
         <div style={{ fontSize: 12, color: c.textSecondary }}>
-          Типовые причины: {interrupt.causes.join('; ')}.
+          {t.typicalCauses(interrupt.causes.join('; '))}
         </div>
       )}
 
@@ -1049,16 +1015,16 @@ export function InterruptCard({ interrupt }: { interrupt: PendingInterrupt }) {
             >
               <span style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
                 <span style={{ fontWeight: isRecommended ? 600 : 400 }}>
-                  {option.label ?? METHOD_LABELS[option.method] ?? option.method}
+                  {option.label ?? t.methodLabels[option.method] ?? option.method}
                   {isRecommended && (
-                    <span style={{ color: c.accent, fontSize: 12, marginLeft: 8 }}>рекомендуем</span>
+                    <span style={{ color: c.accent, fontSize: 12, marginLeft: 8 }}>{t.recommendShort}</span>
                   )}
                 </span>
                 {/* У SRM-вариантов «затронутых строк» нет — это решение,
                     а не обработка данных. */}
                 {!DECISION_KINDS.has(interrupt.kind) && (
                   <span style={{ fontSize: 12, color: c.textSecondary, fontFamily: MONO }}>
-                    {affected(option)}
+                    {affected(option, t)}
                   </span>
                 )}
               </span>

@@ -17,6 +17,8 @@ import type {
   TestResults,
   User,
 } from '../types';
+import { currentLang } from '../lib/lang';
+import type { Lang } from '../lib/lang';
 
 /**
  * Единственный слой, знающий про HTTP. Формы данных подогнаны под types.ts,
@@ -46,7 +48,24 @@ export function setToken(token: string | null): void {
 
 function authHeaders(): Record<string, string> {
   const token = getToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  // Язык идёт заголовком на каждом запросе: тексты прогона — вопросы шагов,
+  // интерпретации, вердикт — собираются на бэкенде, и без него они приходили
+  // бы по-русски в английском интерфейсе.
+  const headers: Record<string, string> = { 'X-Verdict-Lang': currentLang() };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+}
+
+/** Сохранить язык на пользователе. Нужно письмам: они уходят из фонового
+ *  процесса, которому localStorage браузера недоступен. */
+export async function saveLocale(lang: Lang): Promise<User> {
+  return toUser(
+    await request<UserDto>('/auth/me/locale', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ locale: lang }),
+    }),
+  );
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {

@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '../storeContext';
+import { useDict } from '../lib/lang';
+import { resultsDict } from './results.dict';
 import type { DecisionOption, MethodSummaryGroup, Verdict } from '../types';
 // Одна карта тонов на заголовок и на карточку: разный цвет под одним
 // вердиктом читается как два разных вывода.
@@ -13,6 +15,7 @@ import { EvidencePanel } from './EvidencePanel';
  */
 export function VerdictCard({ verdict }: { verdict: Verdict }) {
   const { c } = useStore();
+  const t = useDict(resultsDict);
   const tone = TONE[verdict.code] ?? 'neutral';
   const accent = tone === 'good' ? c.success : tone === 'bad' ? c.error : c.accent;
 
@@ -30,12 +33,12 @@ export function VerdictCard({ verdict }: { verdict: Verdict }) {
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.04em', color: c.textSecondary }}>
-          ВЫВОД
+          {t.conclusion}
         </span>
         <span style={{ fontSize: 16, fontWeight: 700, color: accent }}>{verdict.label}</span>
         {verdict.metric && (
           <span style={{ fontSize: 12, color: c.textSecondary }}>
-            по метрике {verdict.metric}
+            {t.byMetric(verdict.metric)}
             {verdict.relativeDiff !== null &&
               `: ${verdict.relativeDiff >= 0 ? '+' : ''}${(verdict.relativeDiff * 100).toFixed(2)}%`}
           </span>
@@ -54,8 +57,7 @@ export function VerdictCard({ verdict }: { verdict: Verdict }) {
             fontWeight: 600,
           }}
         >
-          SRM: разбиение по группам нарушено. Расчёты выполнены по вашему запросу — числа ниже
-          нельзя использовать для решения, пока не найдена причина перекоса.
+          {t.srmBroken}
         </div>
       )}
 
@@ -70,9 +72,11 @@ export function VerdictCard({ verdict }: { verdict: Verdict }) {
             color: c.warning,
           }}
         >
-          Общий сплит корректен, но перекос есть внутри срезов:{' '}
-          {verdict.srmSegmentFailures.map((f) => `${f.column}: ${f.levels.join(', ')}`).join('; ')}. Выводы
-          по этим срезам делать нельзя, пока причина не найдена.
+          {t.srmInSegments(
+            verdict.srmSegmentFailures
+              .map((f) => `${f.column}: ${f.levels.join(', ')}`)
+              .join('; '),
+          )}
         </div>
       )}
 
@@ -98,7 +102,7 @@ export function VerdictCard({ verdict }: { verdict: Verdict }) {
 
       {verdict.blockingChecks.length > 0 && (
         <div style={{ fontSize: 13, color: c.error }}>
-          Не пройдены обязательные проверки: {verdict.blockingChecks.join(', ')}
+          {t.blockingChecks(verdict.blockingChecks.join(', '))}
         </div>
       )}
 
@@ -106,7 +110,7 @@ export function VerdictCard({ verdict }: { verdict: Verdict }) {
 
       {verdict.caveats.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: c.textSecondary }}>Что ослабляет вывод:</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: c.textSecondary }}>{t.whatWeakens}</div>
           {verdict.caveats.map((caveat) => (
             <div key={caveat} style={{ fontSize: 12, color: c.textSecondary, lineHeight: 1.45 }}>
               • {caveat}
@@ -128,13 +132,14 @@ export function VerdictCard({ verdict }: { verdict: Verdict }) {
  */
 function Decision({ verdict, accent }: { verdict: Verdict; accent: string }) {
   const { c } = useStore();
+  const t = useDict(resultsDict);
   const options = verdict.options ?? [];
 
   // Старый прогон приходит без каталога — показываем то, что в нём есть.
   if (options.length === 0) {
     return (
       <div style={{ fontSize: 14, lineHeight: 1.5 }}>
-        <span style={{ fontWeight: 600 }}>Рекомендация: </span>
+        <span style={{ fontWeight: 600 }}>{t.recommendation}</span>
         {verdict.action}
       </div>
     );
@@ -146,14 +151,14 @@ function Decision({ verdict, accent }: { verdict: Verdict; accent: string }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.04em', color: c.textSecondary }}>
-        ЧТО ДЕЛАТЬ
+        {t.whatToDo}
       </div>
       {recommended.map((option) => (
         <Option key={option.action} option={option} accent={accent} />
       ))}
       {alternatives.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div style={{ fontSize: 12, color: c.textSecondary }}>Остальные варианты:</div>
+          <div style={{ fontSize: 12, color: c.textSecondary }}>{t.otherOptions}</div>
           {alternatives.map((option) => (
             <Option key={option.action} option={option} accent={accent} />
           ))}
@@ -192,6 +197,7 @@ function Option({ option, accent }: { option: DecisionOption; accent: string }) 
  */
 function MethodSummary({ groups, notes }: { groups: MethodSummaryGroup[]; notes: string[] }) {
   const { c } = useStore();
+  const t = useDict(resultsDict);
   const [open, setOpen] = useState<string | null>(null);
 
   // Старый прогон мог не нести сводки — тогда показываем то, что есть.
@@ -199,7 +205,7 @@ function MethodSummary({ groups, notes }: { groups: MethodSummaryGroup[]; notes:
     if (notes.length === 0) return null;
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: c.textSecondary }}>Как считали:</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: c.textSecondary }}>{t.howComputed}</div>
         {notes.map((note) => (
           <div key={note} style={{ fontSize: 12, color: c.textSecondary, lineHeight: 1.45 }}>
             • {note}
@@ -214,7 +220,7 @@ function MethodSummary({ groups, notes }: { groups: MethodSummaryGroup[]; notes:
       {/* Критерий и сравниваемую величину аналитик подтверждал только по
           главным метрикам — по остальным решение принял агент, и оно обязано
           быть видно здесь, а не только в логе прогона. */}
-      <div style={{ fontSize: 12, fontWeight: 600, color: c.textSecondary }}>Как считали:</div>
+      <div style={{ fontSize: 12, fontWeight: 600, color: c.textSecondary }}>{t.howComputed}</div>
       {groups.map((group) => {
         const id = `${group.estimand_label}/${group.method}`;
         const expanded = open === id;
@@ -233,7 +239,7 @@ function MethodSummary({ groups, notes }: { groups: MethodSummaryGroup[]; notes:
                 lineHeight: 1.45,
               }}
             >
-              • {plural(group.metrics.length)} — {group.estimand_label}, {group.method}{' '}
+              • {t.metricsCount(group.metrics.length)} — {group.estimand_label}, {group.method}{' '}
               <span style={{ color: c.accent }}>{expanded ? '▾' : '▸'}</span>
             </button>
             {expanded && (
@@ -252,9 +258,3 @@ function MethodSummary({ groups, notes }: { groups: MethodSummaryGroup[]; notes:
   );
 }
 
-function plural(n: number): string {
-  const tail = n % 100 >= 11 && n % 100 <= 14 ? 5 : n % 10;
-  if (tail === 1) return `${n} метрика`;
-  if (tail >= 2 && tail <= 4) return `${n} метрики`;
-  return `${n} метрик`;
-}

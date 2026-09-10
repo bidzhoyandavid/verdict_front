@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '../storeContext';
+import { useDict } from '../lib/lang';
+import { appDict } from '../lib/appDict';
 import { GRADIENT, MONO } from '../theme';
 import type { RunProgress, StepReport } from '../types';
 
@@ -7,6 +9,7 @@ import type { RunProgress, StepReport } from '../types';
 /** Сырые входные данные шага — под спойлером, чтобы лента оставалась читаемой. */
 function StepDetails({ report }: { report: StepReport }) {
   const { c } = useStore();
+  const t = useDict(appDict);
   const [open, setOpen] = useState(false);
   if (!Object.keys(report.inputs).length) return null;
 
@@ -23,7 +26,7 @@ function StepDetails({ report }: { report: StepReport }) {
           color: c.textSecondary,
         }}
       >
-        {open ? 'скрыть данные шага' : 'данные шага'}
+        {open ? t.checks.hideStepData : t.checks.stepData}
       </button>
       {open && (
         <pre

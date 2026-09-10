@@ -1,6 +1,8 @@
 import { useState } from 'react';
 
 import { useStore } from '../storeContext';
+import { useDict } from '../lib/lang';
+import { appDict } from '../lib/appDict';
 import { StatusBadge } from '../components/ui';
 
 const GRID = '2fr 2fr 1.1fr 1fr 1.4fr 1.1fr 1fr';
@@ -9,6 +11,7 @@ type Scope = 'all' | 'mine';
 
 export function AllTests() {
   const { c, s, tests, selectTest, setNewTestModalOpen } = useStore();
+  const t = useDict(appDict);
   // По умолчанию — все тесты компании. Спрятать чужие за фильтром значило бы
   // вернуть изоляцию команд, ради отмены которой пул и делался (итерация 005).
   const [scope, setScope] = useState<Scope>('all');
@@ -44,10 +47,10 @@ export function AllTests() {
           flexShrink: 0,
         }}
       >
-        <span style={{ flex: 1 }}>Все тесты</span>
+        <span style={{ flex: 1 }}>{t.allTests.title}</span>
         <div style={{ display: 'flex', gap: 8 }}>
-          {tab('all', 'Все команды')}
-          {tab('mine', 'Моя команда')}
+          {tab('all', t.allTests.allTeams)}
+          {tab('mine', t.allTests.myTeam)}
         </div>
       </div>
 
@@ -63,18 +66,18 @@ export function AllTests() {
                 color: c.textSecondary,
               }}
             >
-              <div style={s.tableHeadCell}>Название</div>
-              <div style={s.tableHeadCell}>Команда</div>
-              <div style={s.tableHeadCell}>Гипотеза</div>
-              <div style={s.tableHeadCell}>Статус</div>
-              <div style={s.tableHeadCell}>Результаты</div>
-              <div style={s.tableHeadCell}>Решение</div>
-              <div style={s.tableHeadCell}>Дата</div>
+              <div style={s.tableHeadCell}>{t.allTests.name}</div>
+              <div style={s.tableHeadCell}>{t.allTests.team}</div>
+              <div style={s.tableHeadCell}>{t.allTests.hypothesis}</div>
+              <div style={s.tableHeadCell}>{t.allTests.status}</div>
+              <div style={s.tableHeadCell}>{t.allTests.results}</div>
+              <div style={s.tableHeadCell}>{t.allTests.decision}</div>
+              <div style={s.tableHeadCell}>{t.allTests.date}</div>
             </div>
-            {visible.map((t) => (
+            {visible.map((row) => (
               <div
-                key={t.id}
-                onClick={() => selectTest(t.id)}
+                key={row.id}
+                onClick={() => selectTest(row.id)}
                 style={{
                   display: 'grid',
                   gridTemplateColumns: GRID,
@@ -83,17 +86,21 @@ export function AllTests() {
                   fontSize: 13,
                 }}
               >
-                <div style={s.tableCell}>{t.name}</div>
-                <div style={s.tableCellMuted}>{t.teamName || '—'}</div>
-                <div style={s.tableCellMuted}>{t.hypothesis}</div>
+                <div style={s.tableCell}>{row.name}</div>
+                <div style={s.tableCellMuted}>{row.teamName || '—'}</div>
+                <div style={s.tableCellMuted}>{row.hypothesis}</div>
                 <div style={s.tableCell}>
-                  <StatusBadge status={t.status} />
+                  <StatusBadge status={row.status} />
                 </div>
                 <div style={s.tableCellMuted}>
-                  {t.results ? t.results.short : t.status === 'analyzing' ? 'В процессе' : '—'}
+                  {row.results
+                    ? row.results.short
+                    : row.status === 'analyzing'
+                      ? t.allTests.inProgress
+                      : '—'}
                 </div>
-                <div style={s.tableCell}>{t.decision}</div>
-                <div style={s.tableCellMuted}>{t.date}</div>
+                <div style={s.tableCell}>{row.decision}</div>
+                <div style={s.tableCellMuted}>{row.date}</div>
               </div>
             ))}
           </div>
@@ -111,16 +118,16 @@ export function AllTests() {
             <div style={{ width: 48, height: 48, borderRadius: 12, background: c.surface }} />
             <div style={{ fontSize: 15, fontWeight: 600 }}>
               {scope === 'mine' && tests.length > 0
-                ? 'У вашей команды пока нет тестов'
-                : 'Пока нет ни одного теста'}
+                ? t.allTests.emptyMine
+                : t.allTests.emptyAll}
             </div>
             {scope === 'mine' && tests.length > 0 ? (
               <button onClick={() => setScope('all')} style={s.secondaryButtonSmall}>
-                Показать тесты всех команд
+                {t.allTests.showAllTeams}
               </button>
             ) : (
               <button onClick={() => setNewTestModalOpen(true)} style={s.primaryButton}>
-                ✦ Создать первый тест
+                {t.allTests.createFirst}
               </button>
             )}
           </div>

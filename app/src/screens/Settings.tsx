@@ -1,21 +1,23 @@
 import { useEffect, useState } from 'react';
 
 import { useStore } from '../storeContext';
+import { useDict, useLang } from '../lib/lang';
+import type { Lang } from '../lib/lang';
+import { appDict } from '../lib/appDict';
 import { Field } from '../components/ui';
-import { addCompanyMetric, deleteCompanyMetric, fetchCompanyMetrics } from '../api/client';
+import {
+  addCompanyMetric,
+  deleteCompanyMetric,
+  fetchCompanyMetrics,
+  saveLocale,
+} from '../api/client';
 import type { CompanyMetric, SettingsTab } from '../types';
 
-const TABS: { id: SettingsTab; label: string }[] = [
-  { id: 'profile', label: 'Профиль' },
-  { id: 'company', label: 'Компания' },
-  { id: 'team', label: 'Команда' },
-  { id: 'metrics', label: 'Метрики' },
-  { id: 'theme', label: 'Тема' },
-  { id: 'roles', label: 'Роли и права' },
-];
+const TABS: SettingsTab[] = ['profile', 'company', 'team', 'metrics', 'theme', 'roles'];
 
 export function Settings() {
   const { c, settingsTab, setSettingsTab } = useStore();
+  const t = useDict(appDict);
 
   return (
     <>
@@ -31,7 +33,7 @@ export function Settings() {
           flexShrink: 0,
         }}
       >
-        Настройки
+        {t.settings.title}
       </div>
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         <div
@@ -47,19 +49,19 @@ export function Settings() {
         >
           {TABS.map((tab) => (
             <div
-              key={tab.id}
-              onClick={() => setSettingsTab(tab.id)}
+              key={tab}
+              onClick={() => setSettingsTab(tab)}
               style={{
                 padding: '8px 10px',
                 borderRadius: 7,
                 fontSize: 13,
                 fontWeight: 500,
                 cursor: 'pointer',
-                background: settingsTab === tab.id ? c.surface : 'transparent',
+                background: settingsTab === tab ? c.surface : 'transparent',
                 color: c.textPrimary,
               }}
             >
-              {tab.label}
+              {t.settings.tabs[tab]}
             </div>
           ))}
         </div>
@@ -78,19 +80,20 @@ export function Settings() {
 
 function ProfileTab() {
   const { c, s, user } = useStore();
+  const t = useDict(appDict);
   return (
     <div style={{ maxWidth: 420, display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <Field label="Имя">
+      <Field label={t.settings.name}>
         <input defaultValue={user?.name} style={s.input} />
       </Field>
       <Field label="Email">
         <input defaultValue={user?.email} style={s.input} />
       </Field>
-      <Field label="Пароль">
-        <button style={s.secondaryButtonSmall}>Изменить пароль</button>
+      <Field label={t.settings.password}>
+        <button style={s.secondaryButtonSmall}>{t.settings.changePassword}</button>
       </Field>
       <div style={s.fieldLabel}>
-        Роль
+        {t.settings.role}
         <div style={{ fontSize: 14, color: c.textSecondary }}>{user?.role}</div>
       </div>
     </div>
@@ -99,6 +102,7 @@ function ProfileTab() {
 
 function MetricsTab() {
   const { c, s, user } = useStore();
+  const t = useDict(appDict);
   const [metrics, setMetrics] = useState<CompanyMetric[]>([]);
   const [name, setName] = useState('');
   const [aliases, setAliases] = useState('');
@@ -123,7 +127,7 @@ function MetricsTab() {
       setName('');
       setAliases('');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Не удалось добавить метрику');
+      setError(e instanceof Error ? e.message : t.settings.addFailed);
     }
   };
 
@@ -135,8 +139,7 @@ function MetricsTab() {
   return (
     <div style={{ maxWidth: 560, display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ fontSize: 13, color: c.textSecondary }}>
-        Общие имена метрик для всей компании. Агент подставляет их в постановку теста, поэтому
-        одинаковые метрики разных команд сходятся, а не расходятся по названиям.
+        {t.settings.metricsIntro}
       </div>
 
       {metrics.map((metric) => (
@@ -154,25 +157,25 @@ function MetricsTab() {
             <div style={{ fontSize: 14, fontWeight: 500 }}>{metric.name}</div>
             {metric.aliases.length > 0 && (
               <div style={{ fontSize: 12, color: c.textSecondary }}>
-                также: {metric.aliases.join(', ')}
+                {t.settings.alsoKnownAs(metric.aliases.join(', '))}
               </div>
             )}
           </div>
           {canEdit && (
             <button onClick={() => void drop(metric.id)} style={s.secondaryButtonSmall}>
-              Убрать
+              {t.settings.remove}
             </button>
           )}
         </div>
       ))}
 
       {metrics.length === 0 && (
-        <div style={{ fontSize: 13, color: c.textSecondary }}>Словарь пока пуст.</div>
+        <div style={{ fontSize: 13, color: c.textSecondary }}>{t.settings.emptyDictionary}</div>
       )}
 
       {canEdit && (
         <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-          <Field label="Имя метрики" style={{ flex: 1 }}>
+          <Field label={t.settings.metricName} style={{ flex: 1 }}>
             <input
               placeholder="ARPU"
               value={name}
@@ -180,16 +183,16 @@ function MetricsTab() {
               style={s.input}
             />
           </Field>
-          <Field label="Синонимы через запятую" style={{ flex: 1 }}>
+          <Field label={t.settings.aliases} style={{ flex: 1 }}>
             <input
-              placeholder="arpu_total, выручка на пользователя"
+              placeholder={t.settings.aliasesPlaceholder}
               value={aliases}
               onChange={(e) => setAliases(e.target.value)}
               style={s.input}
             />
           </Field>
           <button onClick={() => void add()} disabled={!name.trim()} style={s.secondaryButtonSmall}>
-            Добавить
+            {t.settings.add}
           </button>
         </div>
       )}
@@ -198,14 +201,9 @@ function MetricsTab() {
   );
 }
 
-const CONTEXT_LABEL: Record<string, string> = {
-  ready: 'Заполнен',
-  draft: 'Начат, но не подтверждён',
-  absent: 'Не заполнен',
-};
-
 function CompanyTab() {
   const { c, s, companyDocs, user, goScreen } = useStore();
+  const t = useDict(appDict);
   const latest = companyDocs[0];
   const isOwner = user?.permission === 'owner';
   const status = user?.contextStatus ?? 'absent';
@@ -213,15 +211,15 @@ function CompanyTab() {
   return (
     <div style={{ maxWidth: 480, display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={s.fieldLabel}>
-        Название
+        {t.settings.companyName}
         <div style={{ fontSize: 14, color: c.textSecondary }}>{user?.companyName || '—'}</div>
       </div>
 
       <div style={s.fieldLabel}>
-        Контекст для агента
+        {t.settings.contextForAgent}
         <div style={{ fontSize: 14, color: c.textSecondary, marginTop: 4 }}>
-          {CONTEXT_LABEL[status]}
-          {status !== 'ready' && ' — агент отвечает без специфики вашего продукта'}
+          {t.settings.contextStatus[status]}
+          {status !== 'ready' && t.settings.contextNoSpecifics}
         </div>
         {/* Заполняет только владелец: документ действует на выводы во всех
             командах компании. */}
@@ -239,17 +237,17 @@ function CompanyTab() {
               cursor: 'pointer',
             }}
           >
-            {status === 'draft' ? 'Продолжить заполнение' : 'Заполнить'}
+            {status === 'draft' ? t.settings.continueFilling : t.settings.fill}
           </button>
         )}
         {!isOwner && status !== 'ready' && (
           <div style={{ fontSize: 13, color: c.textSecondary, marginTop: 6 }}>
-            Заполнить может владелец компании.
+            {t.settings.ownerFills}
           </div>
         )}
       </div>
       <div style={s.fieldLabel}>
-        Описание компании/продукта
+        {t.settings.companyDescription}
         <div
           style={{
             marginTop: 6,
@@ -264,14 +262,14 @@ function CompanyTab() {
           <div>
             <div style={{ fontSize: 13, fontWeight: 500 }}>{latest?.filename ?? '—'}</div>
             <div style={{ fontSize: 12, color: c.textSecondary }}>
-              {latest ? `контекст компании ${latest.version} · обновлён ${latest.updatedAt}` : ''}
+              {latest ? t.settings.contextVersion(latest.version, latest.updatedAt) : ''}
             </div>
           </div>
-          <button style={s.secondaryButtonSmall}>Загрузить новый</button>
+          <button style={s.secondaryButtonSmall}>{t.settings.uploadNew}</button>
         </div>
       </div>
       <div style={s.fieldLabel}>
-        История версий
+        {t.settings.versionHistory}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
           {companyDocs.map((doc, i) => (
             <div
@@ -288,7 +286,7 @@ function CompanyTab() {
                 {doc.version} — {doc.updatedAt}
               </span>
               <a href="#" style={{ color: c.accent, textDecoration: 'none' }}>
-                Скачать
+                {t.settings.download}
               </a>
             </div>
           ))}
@@ -300,11 +298,12 @@ function CompanyTab() {
 
 function TeamTab() {
   const { c, s, team, setInviteModalOpen } = useStore();
+  const t = useDict(appDict);
   return (
     <div style={{ maxWidth: 560, display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
         <button onClick={() => setInviteModalOpen(true)} style={s.secondaryButtonSmall}>
-          Пригласить участника
+          {t.settings.inviteMember}
         </button>
       </div>
       {team.map((p) => (
@@ -330,7 +329,18 @@ function TeamTab() {
 }
 
 function ThemeTab() {
-  const { c, theme, setTheme } = useStore();
+  const { c, s, theme, setTheme } = useStore();
+  const t = useDict(appDict);
+  const { lang, setLang } = useLang();
+
+  // Язык переключается сразу, а на пользователе сохраняется в фоне: письмо
+  // уходит из процесса без браузера, и localStorage ему недоступен. Отказ
+  // сохранения интерфейс не трогает — язык уже переключён.
+  const switchTo = (next: Lang) => {
+    if (next === lang) return;
+    setLang(next);
+    void saveLocale(next).catch(() => {});
+  };
   const option = (active: boolean) => ({
     padding: '10px 14px',
     borderRadius: 8,
@@ -341,10 +351,20 @@ function ThemeTab() {
   return (
     <div style={{ maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div onClick={() => setTheme('light')} style={option(theme === 'light')}>
-        Светлая
+        {t.settings.lightTheme}
       </div>
       <div onClick={() => setTheme('dark')} style={option(theme === 'dark')}>
-        Тёмная
+        {t.settings.darkTheme}
+      </div>
+
+      {/* Язык рядом с темой: и то и другое — как выглядит продукт для этого
+          человека, и искать их в разных местах незачем. */}
+      <div style={{ ...s.fieldLabel, marginTop: 10 }}>{t.settings.language}</div>
+      <div onClick={() => switchTo('ru')} style={option(lang === 'ru')}>
+        Русский
+      </div>
+      <div onClick={() => switchTo('en')} style={option(lang === 'en')}>
+        English
       </div>
     </div>
   );
@@ -352,15 +372,16 @@ function ThemeTab() {
 
 function RolesTab() {
   const { c } = useStore();
+  const t = useDict(appDict);
   return (
     <div style={{ maxWidth: 520, fontSize: 13, lineHeight: 1.6, color: c.textSecondary }}>
       <div style={{ marginBottom: 10 }}>
-        <b style={{ color: c.textPrimary }}>Admin</b> — полный доступ: команда, настройки компании, все
-        тесты
+        <b style={{ color: c.textPrimary }}>Admin</b>
+        {t.settings.adminRights}
       </div>
       <div>
-        <b style={{ color: c.textPrimary }}>Analyst / Product / Marketer</b> — создание тестов, просмотр
-        всех тестов компании, чат с агентом
+        <b style={{ color: c.textPrimary }}>Analyst / Product / Marketer</b>
+        {t.settings.memberRights}
       </div>
     </div>
   );

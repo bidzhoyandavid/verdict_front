@@ -1,21 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../storeContext';
+import { useDict } from '../lib/lang';
+import { appDict } from '../lib/appDict';
 import { Dropzone, Field } from '../components/ui';
 import * as api from '../api/client';
 import type { OnboardDraft, Role } from '../types';
 
 const ROLES: Role[] = ['Admin', 'Analyst', 'Product', 'Marketer', 'Other'];
-const GOALS = ['Анализ A/B тестов', 'Поиск инсайтов', 'Отчёты для команды'];
-
 export function OnboardForm() {
   const { c, s, goScreen, user, completeOnboarding, deferContext } = useStore();
+  const t = useDict(appDict);
   const [submitting, setSubmitting] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState<OnboardDraft>({
     name: '',
     role: 'Admin',
     company: '',
-    goals: [GOALS[0]],
+    goals: [] as string[],
     mdFile: null,
   });
 
@@ -41,7 +42,7 @@ export function OnboardForm() {
       link.click();
       URL.revokeObjectURL(url);
     } catch {
-      setTemplateError('Не удалось скачать шаблон');
+      setTemplateError(t.onboardForm.templateFailed);
     }
   };
 
@@ -63,22 +64,22 @@ export function OnboardForm() {
     >
       <div style={{ width: 520, display: 'flex', flexDirection: 'column', gap: 20 }}>
         <div>
-          <div style={{ fontSize: 22, fontWeight: 600 }}>Расскажите о себе и компании</div>
+          <div style={{ fontSize: 22, fontWeight: 600 }}>{t.onboardForm.title}</div>
           <div style={{ fontSize: 13, color: c.textSecondary, marginTop: 4 }}>
-            Это поможет агенту точнее анализировать ваши тесты
+            {t.onboardForm.subtitle}
           </div>
         </div>
 
-        <Field label="Имя">
+        <Field label={t.onboardForm.name}>
           <input
-            placeholder="Мария Иванова"
+            placeholder={t.onboardForm.namePlaceholder}
             value={draft.name}
             onChange={(e) => setDraft({ ...draft, name: e.target.value })}
             style={s.input}
           />
         </Field>
 
-        <Field label="Роль">
+        <Field label={t.onboardForm.role}>
           <select
             value={draft.role}
             onChange={(e) => setDraft({ ...draft, role: e.target.value as Role })}
@@ -93,16 +94,16 @@ export function OnboardForm() {
         {/* Название введено при регистрации компании на сайте. Спрашивать
             второй раз незачем, а редактирование здесь означало бы тихое
             переименование компании — это отдельное действие в биллинге. */}
-        <Field label="Компания / проект">
+        <Field label={t.onboardForm.company}>
           <div style={{ ...s.input, color: c.textSecondary }}>
             {user?.companyName || draft.company || '—'}
           </div>
         </Field>
 
         <div style={s.fieldLabel}>
-          Основная цель использования
+          {t.onboardForm.mainGoal}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 6 }}>
-            {GOALS.map((goal) => (
+            {t.onboardForm.goals.map((goal) => (
               <label
                 key={goal}
                 style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 14, fontWeight: 400 }}
@@ -119,22 +120,22 @@ export function OnboardForm() {
         </div>
 
         <div style={s.fieldLabel}>
-          Описание компании и продукта (.md)
+          {t.onboardForm.companyDoc}
           <Dropzone>
             {draft.mdFile ? (
               <>
                 <div style={{ fontSize: 13, fontWeight: 500 }}>{draft.mdFile.name}</div>
-                <div style={{ fontSize: 12, color: c.textSecondary }}>загружен</div>
+                <div style={{ fontSize: 12, color: c.textSecondary }}>{t.onboardForm.uploaded}</div>
               </>
             ) : (
               <>
-                <div style={{ fontSize: 13 }}>Перетащите .md файл сюда или</div>
+                <div style={{ fontSize: 13 }}>{t.onboardForm.dropMd}</div>
                 <button
                   type="button"
                   onClick={() => fileInput.current?.click()}
                   style={s.secondaryButtonSmall}
                 >
-                  Выбрать файл
+                  {t.onboardForm.pickFile}
                 </button>
                 <input
                   ref={fileInput}
@@ -162,7 +163,7 @@ export function OnboardForm() {
                 cursor: 'pointer',
               }}
             >
-              Скачать шаблон .md
+              {t.onboardForm.downloadTemplate}
             </button>
             {templateError && (
               <span style={{ marginLeft: 8, color: c.error }}>{templateError}</span>
@@ -181,7 +182,7 @@ export function OnboardForm() {
             disabled={submitting || !draft.mdFile}
             style={{ ...s.primaryButton, opacity: submitting || !draft.mdFile ? 0.5 : 1 }}
           >
-            {submitting ? 'Загружаем...' : 'Продолжить'}
+            {submitting ? t.onboardForm.uploading : t.onboardForm.continue}
           </button>
 
           {/* Равноправная кнопка, а не ссылка в углу: пропуск здесь —
@@ -200,14 +201,12 @@ export function OnboardForm() {
               cursor: submitting ? 'default' : 'pointer',
             }}
           >
-            Заполнить позже
+            {t.onboardForm.later}
           </button>
         </div>
 
         <div style={{ fontSize: 13, color: c.textSecondary, marginTop: 12, lineHeight: 1.5 }}>
-          Контекст можно дозаполнить в любой момент — «Настройки → Компания».
-          Тесты работают и без него: без контекста агент отвечает без
-          специфики вашего продукта.
+          {t.onboardForm.laterHint}
         </div>
       </div>
     </div>

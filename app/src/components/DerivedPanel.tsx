@@ -1,4 +1,6 @@
 import { useStore } from '../storeContext';
+import { useDict } from '../lib/lang';
+import { appDict } from '../lib/appDict';
 import { MONO } from '../theme';
 import type { DerivedColumn } from '../types';
 
@@ -10,12 +12,13 @@ import type { DerivedColumn } from '../types';
  *  а не в форме, которую заполняли до прогона. */
 export function DerivedPanel({ columns }: { columns: DerivedColumn[] }) {
   const { c, s } = useStore();
+  const t = useDict(appDict);
 
   if (columns.length === 0) return null;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <div style={{ fontSize: 13, fontWeight: 600 }}>Производные метрики</div>
+      <div style={{ fontSize: 13, fontWeight: 600 }}>{t.derived.title}</div>
       <div
         style={{
           border: `1px solid ${c.border}`,
@@ -50,11 +53,11 @@ export function DerivedPanel({ columns }: { columns: DerivedColumn[] }) {
                       color: c.accent,
                     }}
                   >
-                    отношение
+                    {t.derived.ratio}
                   </span>
                 )}
                 {failed && (
-                  <span style={{ fontSize: 12, color: c.error }}>не посчитана</span>
+                  <span style={{ fontSize: 12, color: c.error }}>{t.derived.notComputed}</span>
                 )}
               </div>
 
@@ -68,10 +71,10 @@ export function DerivedPanel({ columns }: { columns: DerivedColumn[] }) {
                 {isRatio
                   ? // Главное, что должен знать аналитик про отношение: оно
                     // сравнивается суммами, а не средним построчных дробей.
-                    'сравнивается как сумма числителей к сумме знаменателей'
+                    t.derived.ratioNote
                   : column.aggregatedBy
-                    ? `агрегируется по «${column.aggregatedBy}»`
-                    : 'считается построчно'}
+                    ? t.derived.aggregatedBy(column.aggregatedBy)
+                    : t.derived.perRow}
                 {column.detail ? ` · ${column.detail}` : ''}
               </div>
             </div>

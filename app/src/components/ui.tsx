@@ -1,23 +1,28 @@
 import type { CSSProperties, ReactNode } from 'react';
 import { useStore } from '../storeContext';
+import { useDict } from '../lib/lang';
+import { commonDict } from '../lib/commonDict';
 import { GRADIENT, type Colors } from '../theme';
 import type { TestStatus } from '../types';
 
+/** Цвет статуса. Подпись живёт в словаре: она зависит от языка, а цвет — нет,
+ *  и вызывающему нужно то одно, то другое. */
 export function statusMeta(status: TestStatus, c: Colors) {
-  const map: Record<TestStatus, { label: string; color: string }> = {
-    done: { label: 'Готово', color: c.success },
-    analyzing: { label: 'Анализирует', color: c.warning },
-    awaiting_input: { label: 'Нужен ответ', color: c.accent },
-    clarifying: { label: 'Вопрос агента', color: c.accent },
-    failed: { label: 'Ошибка', color: c.error },
-    queued: { label: 'В очереди', color: c.textSecondary },
+  const map: Record<TestStatus, string> = {
+    done: c.success,
+    analyzing: c.warning,
+    awaiting_input: c.accent,
+    clarifying: c.accent,
+    failed: c.error,
+    queued: c.textSecondary,
   };
-  const meta = map[status];
-  return { ...meta, bg: `${meta.color}22` };
+  const color = map[status];
+  return { color, bg: `${color}22` };
 }
 
 export function StatusBadge({ status }: { status: TestStatus }) {
   const { c } = useStore();
+  const t = useDict(commonDict);
   const meta = statusMeta(status, c);
   return (
     <span
@@ -30,7 +35,7 @@ export function StatusBadge({ status }: { status: TestStatus }) {
         fontWeight: 500,
       }}
     >
-      {meta.label}
+      {t.status[status] ?? status}
     </span>
   );
 }

@@ -1,10 +1,13 @@
 import { useState } from 'react';
 import { useStore } from '../storeContext';
+import { useDict } from '../lib/lang';
+import { appDict } from '../lib/appDict';
 import { Logo } from '../components/ui';
 import type { AuthMode } from '../types';
 
 export function Auth() {
   const { c, s, authMode, setAuthMode, submitAuth, authError, authBusy } = useStore();
+  const t = useDict(appDict);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [company, setCompany] = useState('');
@@ -30,15 +33,15 @@ export function Auth() {
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
           <Logo />
           <div style={{ fontSize: 20, fontWeight: 600 }}>Verdict AI</div>
-          <div style={{ fontSize: 13, color: c.textSecondary }}>Анализ A/B-тестов с AI-агентом</div>
+          <div style={{ fontSize: 13, color: c.textSecondary }}>{t.auth.tagline}</div>
         </div>
 
         <div style={{ display: 'flex', gap: 4, background: c.surface, borderRadius: 10, padding: 4 }}>
           <div onClick={() => setAuthMode('signin')} style={tabStyle('signin')}>
-            Вход
+            {t.auth.signIn}
           </div>
           <div onClick={() => setAuthMode('signup')} style={tabStyle('signup')}>
-            Регистрация
+            {t.auth.signUp}
           </div>
         </div>
 
@@ -52,7 +55,7 @@ export function Auth() {
             style={s.input}
           />
           <input
-            placeholder="Пароль (минимум 8 символов)"
+            placeholder={t.auth.passwordPlaceholder}
             type="password"
             autoComplete={isSignup ? 'new-password' : 'current-password'}
             value={password}
@@ -61,7 +64,7 @@ export function Auth() {
           />
           {isSignup && (
             <input
-              placeholder="Компания"
+              placeholder={t.auth.companyPlaceholder}
               value={company}
               onChange={(e) => setCompany(e.target.value)}
               style={s.input}
@@ -77,12 +80,16 @@ export function Auth() {
             disabled={!canSubmit || authBusy}
             style={{ ...s.primaryButton, opacity: !canSubmit || authBusy ? 0.5 : 1 }}
           >
-            {authBusy ? 'Подождите...' : isSignup ? 'Зарегистрироваться' : 'Войти'}
+            {authBusy
+              ? t.onboardForm.uploading
+              : isSignup
+                ? t.auth.submitSignUp
+                : t.auth.submitSignIn}
           </button>
         </div>
 
         <div style={{ textAlign: 'center', fontSize: 12, color: c.textSecondary }}>
-          {isSignup ? 'Первый пользователь компании становится администратором' : ''}
+          {isSignup ? t.auth.firstUserIsAdmin : ''}
         </div>
       </form>
     </div>

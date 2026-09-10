@@ -1,4 +1,6 @@
 import { useStore } from '../storeContext';
+import { useDict } from '../lib/lang';
+import { resultsDict } from './results.dict';
 import { MONO } from '../theme';
 import type { Evidence } from '../types';
 
@@ -11,13 +13,6 @@ function percent(value: number | null | undefined): string {
   return `${value >= 0 ? '+' : ''}${(value * 100).toFixed(2)}%`;
 }
 
-function plural(n: number, one: string, few: string, many: string): string {
-  const tail = n % 100 >= 11 && n % 100 <= 14 ? 5 : n % 10;
-  if (tail === 1) return one;
-  if (tail >= 2 && tail <= 4) return few;
-  return many;
-}
-
 /**
  * «Почему этому можно верить» — блок, которого не было.
  *
@@ -28,6 +23,7 @@ function plural(n: number, one: string, few: string, many: string): string {
  */
 export function EvidencePanel({ evidence }: { evidence: Evidence }) {
   const { c } = useStore();
+  const t = useDict(resultsDict);
   const { confidence, power, guardrails } = evidence;
 
   const line: React.CSSProperties = { fontSize: 12, color: c.textSecondary, lineHeight: 1.5 };
@@ -37,11 +33,11 @@ export function EvidencePanel({ evidence }: { evidence: Evidence }) {
   if (sample && sample.nControl !== null) {
     facts.push(
       <div key="sample" style={line}>
-        Объём:{' '}
+        {t.sample}{' '}
         <span style={{ fontFamily: MONO }}>
           {count(sample.nControl)} / {count(sample.nTreatment)}
         </span>{' '}
-        — «{sample.controlGroup}» против «{sample.treatmentGroup}»
+        {t.versus(sample.controlGroup ?? '', sample.treatmentGroup ?? '')}
       </div>,
     );
   }
@@ -50,7 +46,7 @@ export function EvidencePanel({ evidence }: { evidence: Evidence }) {
   if (effect?.estimandLabel && effect.method) {
     facts.push(
       <div key="method" style={line}>
-        Сравнивали {effect.estimandLabel}, критерий — {effect.method}
+        {t.compared(effect.estimandLabel, effect.method)}
       </div>,
     );
   }
@@ -58,19 +54,17 @@ export function EvidencePanel({ evidence }: { evidence: Evidence }) {
   const checks = confidence.checks;
   if (checks.total > 0) {
     const tail = [
-      checks.warning > 0 ? `${checks.warning} с предупреждением` : '',
-      checks.failed > 0 ? `${checks.failed} упало` : '',
-      checks.skipped > 0 ? `${checks.skipped} неприменимо` : '',
+      checks.warning > 0 ? t.checksWithWarning(checks.warning) : '',
+      checks.failed > 0 ? t.checksFailed(checks.failed) : '',
+      checks.skipped > 0 ? t.checksSkipped(checks.skipped) : '',
     ].filter(Boolean);
     facts.push(
       <div key="checks" style={line}>
-        Проверок пройдено{' '}
-        <span style={{ fontFamily: MONO }}>
-          {checks.ok} из {checks.total}
-        </span>
+        {t.checksPassed}{' '}
+        <span style={{ fontFamily: MONO }}>{t.outOf(checks.ok, checks.total)}</span>
         {tail.length > 0 && ` (${tail.join(', ')})`}
         {checks.failedNames.length > 0 && (
-          <span style={{ color: c.error }}> — упало: {checks.failedNames.join(', ')}</span>
+          <span style={{ color: c.error }}>{t.failedNames(checks.failedNames.join(', '))}</span>
         )}
       </div>,
     );
@@ -80,15 +74,13 @@ export function EvidencePanel({ evidence }: { evidence: Evidence }) {
   if (correction) {
     facts.push(
       <div key="correction" style={line}>
-        Поправка {correction.method} на {correction.tests}{' '}
-        {plural(correction.tests, 'тест', 'теста', 'тестов')}: значимых было{' '}
-        {correction.significantBefore}, осталось {correction.significantAfter}
+        {t.correction(correction.method, correction.tests)}{' '}
+        {t.significantBeforeAfter(correction.significantBefore, correction.significantAfter)}
         {correction.lost.length > 0 && (
           <>
-            {' '}
-            — потеряли значимость {correction.lost.join(', ')}
+            {t.lostSignificance(correction.lost.join(', '))}
             {correction.lostTotal > correction.lost.length &&
-              ` и ещё ${correction.lostTotal - correction.lost.length}`}
+              t.andMore(correction.lostTotal - correction.lost.length)}
           </>
         )}
       </div>,
@@ -98,13 +90,13 @@ export function EvidencePanel({ evidence }: { evidence: Evidence }) {
   if (confidence.srm.override) {
     facts.push(
       <div key="srm" style={{ ...line, color: c.error }}>
-        Перекос групп обнаружен — расчёты выполнены поверх него по решению аналитика
+        {t.srmOverride}
       </div>,
     );
   } else if (!confidence.srm.detected) {
     facts.push(
       <div key="srm" style={line}>
-        Сплит сошёлся с заявленным — группы сравнимы
+        {t.srmClean}
       </div>,
     );
   }
@@ -112,15 +104,16 @@ export function EvidencePanel({ evidence }: { evidence: Evidence }) {
   if (power && power.conclusion === 'hold') {
     facts.push(
       <div key="power" style={line}>
-        Мощности не хватает: нужно ещё{' '}
-        <span style={{ fontFamily: MONO }}>{count(power.extraObservations)}</span> наблюдений
-        {power.daysLeft !== null && ` — это ~${Math.ceil(power.daysLeft)} дн. при текущем темпе`}
+        {t.needMorePower}{' '}
+        <span style={{ fontFamily: MONO }}>{count(power.extraObservations)}</span>{' '}
+        {t.observations}
+        {power.daysLeft !== null && t.daysLeft(Math.ceil(power.daysLeft))}
       </div>,
     );
   } else if (power && power.conclusion === 'no_effect') {
     facts.push(
       <div key="power" style={line}>
-        Мощности хватило: наблюдённая разница неотличима от нуля
+        {t.powerEnough}
       </div>,
     );
   }
@@ -134,7 +127,7 @@ export function EvidencePanel({ evidence }: { evidence: Evidence }) {
       {facts.length > 0 && (
         <>
           <div style={{ fontSize: 12, fontWeight: 600, color: c.textSecondary }}>
-            Почему этому можно верить:
+            {t.whyTrust}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>{facts}</div>
         </>
@@ -155,7 +148,7 @@ export function EvidencePanel({ evidence }: { evidence: Evidence }) {
           }}
         >
           <div style={{ fontSize: 12, fontWeight: 600, color: c.warning }}>
-            Второстепенные метрики просели:
+            {t.guardrailsDown}
           </div>
           {violations.map((v) => (
             <div key={`${v.metric}|${v.comparison}`} style={{ ...line, color: c.warning }}>
@@ -168,7 +161,7 @@ export function EvidencePanel({ evidence }: { evidence: Evidence }) {
 
       {guardrails && violations.length === 0 && guardrails.watched.length > 0 && (
         <div style={line}>
-          Второстепенные метрики ({guardrails.watched.length}) значимо не просели
+          {t.guardrailsOk(guardrails.watched.length)}
         </div>
       )}
     </div>

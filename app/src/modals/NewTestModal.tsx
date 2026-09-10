@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../storeContext';
+import { useDict } from '../lib/lang';
+import { appDict } from '../lib/appDict';
+import { commonDict } from '../lib/commonDict';
 import { Dropzone, Field, Modal } from '../components/ui';
 import {
   fetchOverlaps,
@@ -13,7 +16,7 @@ import type { NewTestDraft } from '../types';
 const EMPTY: NewTestDraft = {
   name: '',
   hypothesis: '',
-  testType: 'По пользователям',
+  testType: '',
   groups: 'A/B',
   tracker: '',
   segment: '',
@@ -27,6 +30,8 @@ const EMPTY: NewTestDraft = {
 
 export function NewTestModal() {
   const { c, s, setNewTestModalOpen, createTest } = useStore();
+  const t = useDict(appDict);
+  const shared = useDict(commonDict);
   const [draft, setDraft] = useState<NewTestDraft>(EMPTY);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -90,7 +95,7 @@ export function NewTestModal() {
       // уехало ровно то, на чём формулы проверены.
       if (!draft.derivedUnit && checked.unit) patch({ derivedUnit: checked.unit });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Не удалось посчитать формулы');
+      setError(e instanceof Error ? e.message : t.newTest.formulasFailed);
     } finally {
       setPreviewing(false);
     }
@@ -110,7 +115,7 @@ export function NewTestModal() {
       if (columns.length > 0) {
         const datasetId = draft.datasetId ?? (draft.dataFile ? (await uploadDataset(draft.dataFile)).dataset_id : null);
         if (!datasetId) {
-          setError('Для производных колонок нужен файл с данными');
+          setError(t.newTest.needFileForDerived);
           setSubmitting(false);
           return;
         }
@@ -120,34 +125,38 @@ export function NewTestModal() {
         if (!draft.derivedUnit && checked.unit) patch({ derivedUnit: checked.unit });
         const failed = checked.columns.filter((row) => row.status === 'failed');
         if (failed.length > 0) {
-          setError(`Формулы не считаются: ${failed.map((row) => row.name || '(без имени)').join(', ')}`);
+          setError(
+            t.newTest.formulasNotComputed(
+              failed.map((row) => row.name || '—').join(', '),
+            ),
+          );
           setSubmitting(false);
           return;
         }
       }
       await createTest(draft);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Не удалось создать тест');
+      setError(e instanceof Error ? e.message : t.newTest.createFailed);
       setSubmitting(false);
     }
   };
 
   return (
     <Modal width={520} onClose={close}>
-      <div style={{ fontSize: 17, fontWeight: 600 }}>Новый тест</div>
+      <div style={{ fontSize: 17, fontWeight: 600 }}>{t.newTest.title}</div>
 
-      <Field label="Название теста">
+      <Field label={t.newTest.testName}>
         <input
-          placeholder="Новая карточка товара"
+          placeholder={t.newTest.testNamePlaceholder}
           value={draft.name}
           onChange={(e) => patch({ name: e.target.value })}
           style={s.input}
         />
       </Field>
 
-      <Field label="Гипотеза / что тестируем">
+      <Field label={t.newTest.hypothesis}>
         <textarea
-          placeholder="Изменение макета карточки товара увеличит конверсию в добавление в корзину"
+          placeholder={t.newTest.hypothesisPlaceholder}
           value={draft.hypothesis}
           onChange={(e) => patch({ hypothesis: e.target.value })}
           style={s.textarea}
@@ -155,15 +164,16 @@ export function NewTestModal() {
       </Field>
 
       <div style={{ display: 'flex', gap: 10 }}>
-        <Field label="Тип теста" style={{ flex: 1 }}>
+        <Field label={t.newTest.testType} style={{ flex: 1 }}>
           <select value={draft.testType} onChange={(e) => patch({ testType: e.target.value })} style={s.input}>
-            <option>По пользователям</option>
+            {t.newTest.testTypes.map((type) => (
+              <option key={type}>{type}</option>
+            ))}
             <option>Switchback</option>
             <option>Cluster</option>
-            <option>Ценообразование</option>
           </select>
         </Field>
-        <Field label="Группы" style={{ flex: 1 }}>
+        <Field label={t.newTest.groups} style={{ flex: 1 }}>
           <select value={draft.groups} onChange={(e) => patch({ groups: e.target.value })} style={s.input}>
             <option>A/B</option>
             <option>A/B/n</option>
@@ -172,7 +182,7 @@ export function NewTestModal() {
         </Field>
       </div>
 
-      <Field label="Задача в трекере">
+      <Field label={t.newTest.tracker}>
         <input
           placeholder="JIRA-1042"
           value={draft.tracker}
@@ -181,9 +191,9 @@ export function NewTestModal() {
         />
       </Field>
 
-      <Field label="Сегмент/аудитория (опционально)">
+      <Field label={t.newTest.segment}>
         <input
-          placeholder="Новые пользователи, iOS"
+          placeholder={t.newTest.segmentPlaceholder}
           value={draft.segment}
           onChange={(e) => patch({ segment: e.target.value })}
           style={s.input}
@@ -191,7 +201,7 @@ export function NewTestModal() {
       </Field>
 
       <div style={{ display: 'flex', gap: 10 }}>
-        <Field label="Начало" style={{ flex: 1 }}>
+        <Field label={t.newTest.start} style={{ flex: 1 }}>
           <input
             type="date"
             value={draft.startDate}
@@ -199,7 +209,7 @@ export function NewTestModal() {
             style={s.input}
           />
         </Field>
-        <Field label="Конец" style={{ flex: 1 }}>
+        <Field label={t.newTest.end} style={{ flex: 1 }}>
           <input
             type="date"
             value={draft.endDate}
@@ -210,11 +220,9 @@ export function NewTestModal() {
       </div>
 
       <div style={s.fieldLabel}>
-        Производные колонки (опционально)
+        {t.newTest.derivedColumns}
         <div style={{ fontSize: 12, color: c.textSecondary, fontWeight: 400 }}>
-          Колонка, которой нет в файле. Можно формулой — sum(orders) / count(*), — а можно
-          словами: «конверсия из просмотра в заказ». Агент подберёт колонки сам и покажет,
-          что именно посчитал. Юнит агрегации оставьте пустым — определим по данным.
+          {t.newTest.derivedHint}
         </div>
         {draft.derivedColumns.map((column, index) => (
           <div key={index} style={{ display: 'flex', gap: 8, marginTop: 8 }}>
@@ -225,24 +233,24 @@ export function NewTestModal() {
               style={{ ...s.input, flex: 1 }}
             />
             <input
-              placeholder="конверсия из визита в заказ"
+              placeholder={t.newTest.derivedPlaceholder}
               value={column.expression}
               onChange={(e) => patchColumn(index, { expression: e.target.value })}
               style={{ ...s.input, flex: 2 }}
             />
             <button type="button" onClick={() => dropColumn(index)} style={s.secondaryButtonSmall}>
-              Убрать
+              {t.newTest.removeColumn}
             </button>
           </div>
         ))}
         <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
           <button type="button" onClick={addColumn} style={s.secondaryButtonSmall}>
-            Добавить колонку
+            {t.newTest.addColumn}
           </button>
           {draft.derivedColumns.length > 0 && (
             <>
               <input
-                placeholder="юнит: определим сам, напр. user_id"
+                placeholder={t.newTest.unitPlaceholder}
                 value={draft.derivedUnit}
                 onChange={(e) => patch({ derivedUnit: e.target.value })}
                 style={{ ...s.input, flex: 1 }}
@@ -253,14 +261,14 @@ export function NewTestModal() {
                 disabled={previewing || !draft.dataFile}
                 style={s.secondaryButtonSmall}
               >
-                {previewing ? 'Считаю...' : 'Проверить на данных'}
+                {previewing ? t.newTest.checking : t.newTest.checkOnData}
               </button>
             </>
           )}
         </div>
         {draft.derivedColumns.length > 0 && !draft.dataFile && (
           <div style={{ fontSize: 12, color: c.textSecondary, marginTop: 6, fontWeight: 400 }}>
-            Проверить формулу можно после выбора файла с данными.
+            {t.newTest.checkAfterFile}
           </div>
         )}
         {preview && (
@@ -279,8 +287,11 @@ export function NewTestModal() {
                 key={row.name}
                 style={{ color: row.status === 'failed' ? c.error : c.textSecondary }}
               >
-                {row.name}: {row.status === 'failed' ? row.detail : row.detail || 'посчитано'}
-                {row.status === 'ok' && row.aggregatedBy ? ` · по «${row.aggregatedBy}»` : ''}
+                {row.name}:{' '}
+                {row.status === 'failed' ? row.detail : row.detail || t.newTest.computed}
+                {row.status === 'ok' && row.aggregatedBy
+                  ? t.newTest.aggregatedBy(row.aggregatedBy)
+                  : ''}
                 {row.written && row.expression ? ` · «${row.written}» → ${row.expression}` : ''}
               </div>
             ))}
@@ -328,34 +339,35 @@ export function NewTestModal() {
           }}
         >
           <div style={{ color: c.textPrimary, fontWeight: 500 }}>
-            В это окно уже идут тесты: {overlaps.length}
+            {t.newTest.overlapsCount(overlaps.length)}
           </div>
           {overlaps.slice(0, 4).map((row) => (
             <div key={row.testId}>
               {row.name}
-              {row.team ? ` · ${row.team}` : ''} · {row.days} дн. пересечения
-              {row.sameAudience ? ' · та же аудитория' : ''}
+              {row.team ? ` · ${row.team}` : ''}
+              {t.newTest.overlapDays(row.days)}
+              {row.sameAudience ? t.newTest.sameAudience : ''}
             </div>
           ))}
-          {overlaps.length > 4 && <div>и ещё {overlaps.length - 4}</div>}
+          {overlaps.length > 4 && <div>{t.newTest.andMore(overlaps.length - 4)}</div>}
           <div>
-            Это не мешает создать тест, но эффект может быть создан не только вашим изменением.
+            {t.newTest.overlapNote}
           </div>
         </div>
       )}
 
       <div style={s.fieldLabel}>
-        Файл с данными (csv, parquet)
+        {t.newTest.dataFile}
         <Dropzone padding={16}>
           {draft.dataFile ? (
             <div style={{ fontSize: 13, fontWeight: 500, color: c.textPrimary }}>{draft.dataFile.name}</div>
           ) : (
             <>
               <div style={{ fontSize: 13, color: c.textSecondary }}>
-                Перетащите файл сюда · до 200 МБ · нужны колонки с группой и метрикой
+                {t.newTest.dropFile}
               </div>
               <button type="button" onClick={() => fileInput.current?.click()} style={s.secondaryButtonSmall}>
-                Выбрать файл
+                {t.newTest.pickFile}
               </button>
               <input
                 ref={fileInput}
@@ -381,14 +393,14 @@ export function NewTestModal() {
 
       <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 6 }}>
         <button onClick={close} style={{ ...s.secondaryButton, width: 'auto', padding: '10px 16px' }}>
-          Отмена
+          {shared.cancel}
         </button>
         <button
           onClick={submit}
           disabled={submitting || !draft.name.trim() || !draft.dataFile}
           style={{ ...s.primaryButton, width: 'auto', padding: '10px 16px' }}
         >
-          {submitting ? 'Загружаем...' : '✦ Запустить анализ'}
+          {submitting ? t.newTest.uploading : t.newTest.runAnalysis}
         </button>
       </div>
     </Modal>

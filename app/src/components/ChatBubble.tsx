@@ -1,4 +1,6 @@
 import { useStore } from '../storeContext';
+import { useDict } from '../lib/lang';
+import { appDict } from '../lib/appDict';
 import { GRADIENT } from '../theme';
 import { ResultsTable } from './ResultsTable';
 import type { ChatMessage } from '../types';
@@ -26,6 +28,7 @@ export function ChatBubble({
   hideResults = false,
 }: Props) {
   const { c } = useStore();
+  const t = useDict(appDict);
   const isAgent = message.role === 'agent';
 
   return (
@@ -80,7 +83,7 @@ export function ChatBubble({
           (staleResults ? (
             <details style={{ marginTop: 6 }}>
               <summary style={{ fontSize: 12, color: c.textSecondary, cursor: 'pointer' }}>
-                Результаты на момент этого прогона (устарели)
+                {t.chat.staleResults}
               </summary>
               <div style={{ marginTop: 6 }}>
                 <ResultsTable results={message.results} />
