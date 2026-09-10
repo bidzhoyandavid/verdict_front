@@ -52,6 +52,8 @@ export type InterruptDict = {
   oneRowPerValue: string;
   rowsPerValue: (n: string) => string;
   nullShare: (share: string) => string;
+  meanValue: (value: string) => string;
+  skipBalanceCheck: string;
   columnNotListed: string;
   columnNamePlaceholder: string;
   countByIt: string;
@@ -126,6 +128,8 @@ export const interruptDict: Record<Lang, InterruptDict> = {
       test_method: 'Каким критерием сравнивать группы?',
       outlier_review: 'Как обработать выбросы?',
       outlier_confirm: 'Согласны с обработкой выбросов?',
+      covariate_choice:
+        'По каким признакам проверить, что группы одинаковы по составу?',
     },
     rowsAffected: (share, n) => `${share}% строк (${n})`,
     rowsCount: (n) => `${n} строк`,
@@ -173,6 +177,8 @@ export const interruptDict: Record<Lang, InterruptDict> = {
     oneRowPerValue: ', по одной строке на значение',
     rowsPerValue: (n) => `, ≈${n} строк на значение`,
     nullShare: (share) => `, пропусков ${share}%`,
+    meanValue: (value) => `среднее ${value}`,
+    skipBalanceCheck: 'Не проверять состав групп',
     columnNotListed: 'Нужной колонки нет в списке — выберите любую числовую:',
     columnNamePlaceholder: 'имя колонки',
     countByIt: 'Считать по ней',
@@ -249,6 +255,8 @@ export const interruptDict: Record<Lang, InterruptDict> = {
       test_method: 'Which test should compare the groups?',
       outlier_review: 'How should outliers be handled?',
       outlier_confirm: 'Does this outlier treatment work for you?',
+      covariate_choice:
+        'Which attributes should be checked for equal composition across groups?',
     },
     rowsAffected: (share, n) => `${share}% of rows (${n})`,
     rowsCount: (n) => `${n} rows`,
@@ -298,6 +306,8 @@ export const interruptDict: Record<Lang, InterruptDict> = {
     oneRowPerValue: ', one row per value',
     rowsPerValue: (n) => `, ≈${n} rows per value`,
     nullShare: (share) => `, missing ${share}%`,
+    meanValue: (value) => `mean ${value}`,
+    skipBalanceCheck: 'Skip the composition check',
     columnNotListed: 'The column you need is not listed — pick any numeric one:',
     columnNamePlaceholder: 'column name',
     countByIt: 'Count by it',

@@ -244,8 +244,11 @@ export interface SrmAllocationRow {
 export interface SegmentCandidate {
   column: string;
   n_levels: number;
-  null_share: number;
-  levels: { level: string; n_rows: number; share: number }[];
+  /** Кандидаты в ковариаты (`covariate_choice`) приходят без уровней и доли
+   *  пропусков: они числовые, и вместо перечня значений у них среднее. */
+  null_share?: number;
+  levels?: { level: string; n_rows: number; share: number }[];
+  mean?: number;
 }
 
 /** primary_metrics: метрика и то, как выглядит её распределение. */

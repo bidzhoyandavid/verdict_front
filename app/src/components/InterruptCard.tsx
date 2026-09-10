@@ -305,10 +305,15 @@ function SegmentPicker({
   candidates,
   primaryLabel,
   fallbackLabel,
+  field = 'segments',
 }: {
   candidates: SegmentCandidate[];
   primaryLabel?: string;
   fallbackLabel?: string;
+  /** Под каким именем уходит ответ. `srm_segments` спрашивает про срезы,
+   *  `covariate_choice` — про предэкспериментальные признаки, и бэкенд
+   *  читает у них разные поля. */
+  field?: 'segments' | 'covariates';
 }) {
   const t = useDict(interruptDict);
   const { c, s, answerInterrupt } = useStore();
@@ -318,10 +323,10 @@ function SegmentPicker({
   const toggle = (column: string) =>
     setChosen((prev) => (prev.includes(column) ? prev.filter((x) => x !== column) : [...prev, column]));
 
-  const send = async (segments: string[]) => {
+  const send = async (chosenColumns: string[]) => {
     setBusy(true);
     try {
-      await answerInterrupt({ segments });
+      await answerInterrupt({ [field]: chosenColumns });
     } finally {
       setBusy(false);
     }
@@ -355,10 +360,13 @@ function SegmentPicker({
               <span style={{ fontSize: 12, color: c.textSecondary }}>{t.nLevels(candidate.n_levels)}</span>
               <div style={{ fontSize: 12, color: c.textSecondary }}>
                 {candidate.levels
-                  .slice(0, 5)
-                  .map((level) => `${level.level} — ${(level.share * 100).toFixed(0)}%`)
-                  .join(', ')}
-                {candidate.levels.length > 5 && ' …'}
+                  ? candidate.levels
+                      .slice(0, 5)
+                      .map((level) => `${level.level} — ${(level.share * 100).toFixed(0)}%`)
+                      .join(', ') + (candidate.levels.length > 5 ? ' …' : '')
+                  : candidate.mean !== undefined
+                    ? t.meanValue(num(candidate.mean))
+                    : ''}
               </div>
             </span>
           </label>
@@ -849,6 +857,7 @@ export function InterruptCard({ interrupt }: { interrupt: PendingInterrupt }) {
   const isNullReview = interrupt.kind === 'null_review';
   const isSrmGate = interrupt.kind === 'srm_gate';
   const isSegmentPicker = interrupt.kind === 'srm_segments';
+  const isCovariatePicker = interrupt.kind === 'covariate_choice';
   const isOutlierReview = interrupt.kind === 'outlier_review';
   const isUnitPicker = interrupt.kind === 'srm_unit';
   const isDesignPicker = interrupt.kind === 'srm_design';
@@ -867,6 +876,7 @@ export function InterruptCard({ interrupt }: { interrupt: PendingInterrupt }) {
   // объяснение уже написано агентом в интерпретации шага.
   const usesReportText =
     isSegmentPicker ||
+    isCovariatePicker ||
     isSrmGate ||
     isNullReview ||
     isUnitPicker ||
@@ -938,6 +948,18 @@ export function InterruptCard({ interrupt }: { interrupt: PendingInterrupt }) {
       )}
 
       {isSegmentPicker && interrupt.candidates && <SegmentPicker candidates={interrupt.candidates} />}
+
+      {/* Тот же мультивыбор, что у срезов SRM, но ответ уходит полем
+          `covariates`, и «ничего не выбрать» — законный ответ: тогда
+          состав групп просто не проверяется. */}
+      {isCovariatePicker && interrupt.candidates && (
+        <SegmentPicker
+          candidates={interrupt.candidates}
+          field="covariates"
+          primaryLabel={t.checkSelected}
+          fallbackLabel={t.skipBalanceCheck}
+        />
+      )}
 
       {isMethodChoice && interrupt.robustness && (
         <CalibrationLine robustness={interrupt.robustness} />
