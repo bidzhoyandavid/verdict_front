@@ -67,6 +67,7 @@ export interface Store {
   team: TeamMember[];
   invite: (email: string, role: Role) => Promise<void>;
   companyDocs: CompanyDoc[];
+  uploadCompanyDoc: (file: File) => Promise<void>;
 }
 
 export const StoreContext = createContext<Store | null>(null);

@@ -109,6 +109,17 @@ export type AppDict = {
     name: string;
     password: string;
     changePassword: string;
+    currentPassword: string;
+    newPassword: string;
+    repeatPassword: string;
+    savePassword: string;
+    savingPassword: string;
+    passwordChanged: string;
+    passwordsDiffer: string;
+    passwordChangeFailed: string;
+    cancel: string;
+    uploadingDoc: string;
+    uploadDocFailed: string;
     role: string;
     metricsIntro: string;
     alsoKnownAs: (aliases: string) => string;
@@ -178,6 +189,9 @@ export type AppDict = {
     pickFile: string;
     uploading: string;
     runAnalysis: string;
+    needName: string;
+    needFile: string;
+    needNameAndFile: string;
   };
   onboardForm: {
     goals: string[];
@@ -325,6 +339,17 @@ export const appDict: Record<Lang, AppDict> = {
       name: 'Имя',
       password: 'Пароль',
       changePassword: 'Изменить пароль',
+      currentPassword: 'Текущий пароль',
+      newPassword: 'Новый пароль (минимум 8 символов)',
+      repeatPassword: 'Повторите новый пароль',
+      savePassword: 'Сохранить пароль',
+      savingPassword: 'Сохраняем…',
+      passwordChanged: 'Пароль изменён.',
+      passwordsDiffer: 'Пароли не совпадают.',
+      passwordChangeFailed: 'Не удалось сменить пароль.',
+      cancel: 'Отмена',
+      uploadingDoc: 'Загружаем…',
+      uploadDocFailed: 'Не удалось загрузить файл.',
       role: 'Роль',
       metricsIntro:
         'Общие имена метрик для всей компании. Агент подставляет их в постановку теста, поэтому одинаковые метрики разных команд сходятся, а не расходятся по названиям.',
@@ -405,6 +430,10 @@ export const appDict: Record<Lang, AppDict> = {
       pickFile: 'Выбрать файл',
       uploading: 'Загружаем...',
       runAnalysis: '✦ Запустить анализ',
+      needName: 'Чтобы запустить анализ, укажите название теста.',
+      needFile: 'Чтобы запустить анализ, выберите файл с данными.',
+      needNameAndFile:
+        'Чтобы запустить анализ, укажите название теста и выберите файл с данными.',
     },
     onboardForm: {
       goals: ['Анализ A/B тестов', 'Поиск инсайтов', 'Отчёты для команды'],
@@ -553,6 +582,17 @@ export const appDict: Record<Lang, AppDict> = {
       name: 'Name',
       password: 'Password',
       changePassword: 'Change the password',
+      currentPassword: 'Current password',
+      newPassword: 'New password (at least 8 characters)',
+      repeatPassword: 'Repeat the new password',
+      savePassword: 'Save the password',
+      savingPassword: 'Saving…',
+      passwordChanged: 'The password has been changed.',
+      passwordsDiffer: 'The passwords do not match.',
+      passwordChangeFailed: 'The password could not be changed.',
+      cancel: 'Cancel',
+      uploadingDoc: 'Uploading…',
+      uploadDocFailed: 'The file could not be uploaded.',
       role: 'Role',
       metricsIntro:
         'Shared metric names for the whole company. The agent substitutes them into the test setup, so the same metric from different teams lines up instead of drifting apart by name.',
@@ -632,6 +672,10 @@ export const appDict: Record<Lang, AppDict> = {
       pickFile: 'Choose a file',
       uploading: 'Uploading…',
       runAnalysis: '✦ Run the analysis',
+      needName: 'To run the analysis, give the test a name.',
+      needFile: 'To run the analysis, choose a data file.',
+      needNameAndFile:
+        'To run the analysis, give the test a name and choose a data file.',
     },
     onboardForm: {
       goals: ['A/B test analysis', 'Finding insights', 'Reports for the team'],

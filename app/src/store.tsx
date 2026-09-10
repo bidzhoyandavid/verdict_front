@@ -254,6 +254,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setNewTestModalOpen(false);
   }, []);
 
+  /** Загрузить новое описание компании и обновить то, что показывают
+   *  настройки: список версий и статус контекста у пользователя — оба
+   *  меняются этой же загрузкой. */
+  const uploadCompanyDoc = useCallback(async (file: File) => {
+    await api.uploadCompanyDoc(file);
+    setCompanyDocs(await api.fetchCompanyDocs());
+    setUser(await api.fetchCurrentUser());
+  }, []);
+
   const renameTest = useCallback(async (id: string, name: string) => {
     const test = await api.renameTest(id, name);
     setTests((prev) => prev.map((t) => (t.id === test.id ? { ...t, name: test.name } : t)));
@@ -361,6 +370,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     team,
     invite,
     companyDocs,
+    uploadCompanyDoc,
   };
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

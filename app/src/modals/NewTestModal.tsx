@@ -104,6 +104,16 @@ export function NewTestModal() {
   // Формулы проверяются перед созданием, а не по кнопке: непроверенная формула
   // отбивается уже внутри прогона, и человек узнаёт об этом из оговорки в
   // вердикте — то есть когда анализ посчитан без его метрик.
+  const needsName = !draft.name.trim();
+  const needsFile = !draft.dataFile;
+  const blocked = needsName || needsFile;
+  const missing =
+    needsName && needsFile
+      ? t.newTest.needNameAndFile
+      : needsName
+        ? t.newTest.needName
+        : t.newTest.needFile;
+
   const filledColumns = () =>
     draft.derivedColumns.filter((column) => column.name.trim() && column.expression.trim());
 
@@ -390,6 +400,9 @@ export function NewTestModal() {
       </div>
 
       {error && <div style={{ fontSize: 13, color: c.error }}>{error}</div>}
+      {blocked && !error && (
+        <div style={{ fontSize: 13, color: c.textSecondary }}>{missing}</div>
+      )}
 
       <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 6 }}>
         <button onClick={close} style={{ ...s.secondaryButton, width: 'auto', padding: '10px 16px' }}>
@@ -397,8 +410,19 @@ export function NewTestModal() {
         </button>
         <button
           onClick={submit}
-          disabled={submitting || !draft.name.trim() || !draft.dataFile}
-          style={{ ...s.primaryButton, width: 'auto', padding: '10px 16px' }}
+          disabled={blocked || submitting}
+          title={blocked ? missing : undefined}
+          style={{
+            ...s.primaryButton,
+            width: 'auto',
+            padding: '10px 16px',
+            // Заблокированная кнопка обязана выглядеть заблокированной: без
+            // этого она остаётся ярко-акцентной, с курсором-указателем, и
+            // нажатие молча игнорируется браузером — снаружи это читается
+            // как «кнопка сломана», а не «я чего-то не заполнил».
+            opacity: blocked || submitting ? 0.5 : 1,
+            cursor: blocked || submitting ? 'not-allowed' : 'pointer',
+          }}
         >
           {submitting ? t.newTest.uploading : t.newTest.runAnalysis}
         </button>

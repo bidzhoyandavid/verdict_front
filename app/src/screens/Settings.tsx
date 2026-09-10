@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { useStore } from '../storeContext';
 import { useDict, useLang } from '../lib/lang';
@@ -7,6 +7,7 @@ import { appDict } from '../lib/appDict';
 import { Field } from '../components/ui';
 import {
   addCompanyMetric,
+  changePassword,
   deleteCompanyMetric,
   fetchCompanyMetrics,
   saveLocale,
@@ -78,6 +79,128 @@ export function Settings() {
   );
 }
 
+/** Смена пароля прямо в настройках.
+ *
+ *  Раскрывается по кнопке, а не живёт формой всегда: три поля ввода в
+ *  профиле читаются как то, что нужно заполнить, а пароль меняют редко.
+ *  Текущий пароль спрашивается не для формальности — сессия могла остаться
+ *  открытой на чужой машине.
+ */
+function PasswordChange() {
+  const { c, s } = useStore();
+  const t = useDict(appDict);
+  const [open, setOpen] = useState(false);
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [repeat, setRepeat] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+
+  const reset = () => {
+    setCurrent('');
+    setNext('');
+    setRepeat('');
+    setError(null);
+  };
+
+  const submit = async () => {
+    if (next !== repeat) {
+      setError(t.settings.passwordsDiffer);
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await changePassword(current, next);
+      reset();
+      setOpen(false);
+      setDone(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t.settings.passwordChangeFailed);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <Field label={t.settings.password}>
+        <button
+          onClick={() => {
+            setDone(false);
+            setOpen(true);
+          }}
+          style={s.secondaryButtonSmall}
+        >
+          {t.settings.changePassword}
+        </button>
+        {done && (
+          <div style={{ fontSize: 13, color: c.success, marginTop: 6 }}>
+            {t.settings.passwordChanged}
+          </div>
+        )}
+      </Field>
+    );
+  }
+
+  const blocked = busy || !current || next.length < 8 || !repeat;
+
+  return (
+    <Field label={t.settings.password}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <input
+          type="password"
+          autoComplete="current-password"
+          placeholder={t.settings.currentPassword}
+          value={current}
+          onChange={(e) => setCurrent(e.target.value)}
+          style={s.input}
+        />
+        <input
+          type="password"
+          autoComplete="new-password"
+          placeholder={t.settings.newPassword}
+          value={next}
+          onChange={(e) => setNext(e.target.value)}
+          style={s.input}
+        />
+        <input
+          type="password"
+          autoComplete="new-password"
+          placeholder={t.settings.repeatPassword}
+          value={repeat}
+          onChange={(e) => setRepeat(e.target.value)}
+          style={s.input}
+        />
+        {error && <div style={{ fontSize: 13, color: c.error }}>{error}</div>}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => void submit()}
+            disabled={blocked}
+            style={{
+              ...s.secondaryButtonSmall,
+              opacity: blocked ? 0.5 : 1,
+              cursor: blocked ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {busy ? t.settings.savingPassword : t.settings.savePassword}
+          </button>
+          <button
+            onClick={() => {
+              reset();
+              setOpen(false);
+            }}
+            style={s.secondaryButtonSmall}
+          >
+            {t.settings.cancel}
+          </button>
+        </div>
+      </div>
+    </Field>
+  );
+}
+
 function ProfileTab() {
   const { c, s, user } = useStore();
   const t = useDict(appDict);
@@ -89,9 +212,7 @@ function ProfileTab() {
       <Field label="Email">
         <input defaultValue={user?.email} style={s.input} />
       </Field>
-      <Field label={t.settings.password}>
-        <button style={s.secondaryButtonSmall}>{t.settings.changePassword}</button>
-      </Field>
+      <PasswordChange />
       <div style={s.fieldLabel}>
         {t.settings.role}
         <div style={{ fontSize: 14, color: c.textSecondary }}>{user?.role}</div>
@@ -202,8 +323,23 @@ function MetricsTab() {
 }
 
 function CompanyTab() {
-  const { c, s, companyDocs, user, goScreen } = useStore();
+  const { c, s, companyDocs, user, goScreen, uploadCompanyDoc } = useStore();
   const t = useDict(appDict);
+  const docInput = useRef<HTMLInputElement>(null);
+  const [docBusy, setDocBusy] = useState(false);
+  const [docError, setDocError] = useState<string | null>(null);
+
+  const sendDoc = async (file: File) => {
+    setDocBusy(true);
+    setDocError(null);
+    try {
+      await uploadCompanyDoc(file);
+    } catch (e) {
+      setDocError(e instanceof Error ? e.message : t.settings.uploadDocFailed);
+    } finally {
+      setDocBusy(false);
+    }
+  };
   const latest = companyDocs[0];
   const isOwner = user?.permission === 'owner';
   const status = user?.contextStatus ?? 'absent';
@@ -265,9 +401,30 @@ function CompanyTab() {
               {latest ? t.settings.contextVersion(latest.version, latest.updatedAt) : ''}
             </div>
           </div>
-          <button style={s.secondaryButtonSmall}>{t.settings.uploadNew}</button>
+          <button
+            onClick={() => docInput.current?.click()}
+            disabled={docBusy}
+            style={{ ...s.secondaryButtonSmall, opacity: docBusy ? 0.5 : 1 }}
+          >
+            {docBusy ? t.settings.uploadingDoc : t.settings.uploadNew}
+          </button>
+          <input
+            ref={docInput}
+            type="file"
+            accept=".md"
+            hidden
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              // Значение сбрасывается сразу: иначе повторный выбор того же
+              // файла не даёт события, и кнопка снова «не работает».
+              e.target.value = '';
+              if (file) void sendDoc(file);
+            }}
+          />
         </div>
       </div>
+      {docError && <div style={{ fontSize: 13, color: c.error }}>{docError}</div>}
+
       <div style={s.fieldLabel}>
         {t.settings.versionHistory}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>

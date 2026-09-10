@@ -736,6 +736,19 @@ export async function deleteCompanyMetric(metricId: string): Promise<void> {
   await request<void>(`/metrics/${metricId}`, { method: 'DELETE' });
 }
 
+/** Сменить пароль, зная текущий. Отдельный путь от сброса по почте:
+ *  там владение ящиком доказывает ссылка, здесь — знание пароля. */
+export async function changePassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
+  await request<void>('/auth/password/change', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  });
+}
+
 export async function fetchCompanyDocs(): Promise<CompanyDoc[]> {
   return request<CompanyDoc[]>('/files/company-doc');
 }
